@@ -9,13 +9,14 @@
 #define	CONFIG_KV_NAME			"server"
 #define	CONFIG_KV_INFO_NAME		"info"
 #define	CONFIG_KV_RESTART_NAME	"restart"
+#define PREFIX_CHAT				"{olive}[FixMemoryLeak]"
 
 public Plugin myinfo =
 {
 	name = "FixMemoryLeak",
-	author = "maxime1907",
+	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.0"
+	version = "1.2.1"
 }
 
 enum struct ConfiguredRestart {
@@ -26,6 +27,8 @@ enum struct ConfiguredRestart {
 
 ConVar g_cRestartMode;
 ConVar g_cRestartDelay;
+ConVar g_cMaxPlayers = null;
+ConVar g_cMaxPlayersCountBots = null;
 
 ArrayList g_iConfiguredRestarts = null;
 
@@ -33,19 +36,23 @@ bool g_bDebug = false;
 
 bool g_bRestart = false;
 
+bool g_bPostponeRestart = false;
+
 public void OnPluginStart()
 {
 	g_cRestartMode = CreateConVar("sm_restart_mode", "2", "2 = Add configured days and sm_restart_delay, 1 = Only configured days, 0 = Only sm_restart_delay.", FCVAR_NOTIFY, true, 0.0, true, 2.0);
-
-	g_cRestartDelay = CreateConVar("sm_restart_delay", "1440", "How much time before a server restart in minutes.", FCVAR_NOTIFY, true, 60.0, true, 100000.0);
+	g_cRestartDelay = CreateConVar("sm_restart_delay", "1440", "How much time before a server restart in minutes.", FCVAR_NOTIFY, true, 1.0, true, 100000.0);
+	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
+	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	AutoExecConfig(true);
 
 	RegAdminCmd("sm_restartsv", Command_RestartServer, ADMFLAG_RCON, "Soft restarts the server to the nextmap.");
-	RegAdminCmd("sm_reloadrestartcfg", Command_DebugConfig, ADMFLAG_RCON, "Reloads the configuration.");
+	RegAdminCmd("sm_cancelrestart", Command_AdminCancel, ADMFLAG_RCON, "Cancel the soft restart server.");
+	RegAdminCmd("sm_reloadrestartcfg", Command_DebugConfig, ADMFLAG_ROOT, "Reloads the configuration.");
 
 	RegServerCmd("changelevel", Hook_OnMapChange);
-   	RegServerCmd("quit", Hook_OnServerQuit);
+	RegServerCmd("quit", Hook_OnServerQuit);
 	RegServerCmd("_restart", Hook_OnServerRestart);
 
 	HookEvent("round_end", OnRoundEnd, EventHookMode_Pre);
@@ -81,12 +88,17 @@ public void OnMapStart()
 
 public Action Hook_OnMapChange(int args)
 {
-	if (IsRestartNeeded())
+	if (IsRestartNeeded() && !g_bPostponeRestart)
 	{
 		SetupNextRestartNextMap();
 		SoftServerRestart();
 		return Plugin_Stop;
 	}
+	else
+	{
+		g_bPostponeRestart = false;
+	}
+
 	return Plugin_Continue;
 }
 
@@ -113,7 +125,7 @@ public Action Command_RestartServer(int client, int argc)
 	char sNextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
 	{
-		CPrintToChat(client, "{green}[FixMemoryLeak] No nextmap have been set, please set one.");
+		CPrintToChat(client, "%s {red}No nextmap have been set, please set one.", PREFIX_CHAT);
 		return Plugin_Handled;
 	}
 
@@ -135,37 +147,111 @@ public Action Command_DebugConfig(int client, int argc)
 			PrintConfiguredRestarts();
 			CPrintToChatAll("Nextrestart => %d", GetNextRestartTime());
 		}
-		CPrintToChat(client, "{green}[FixMemoryLeak] {white}Successfully reloaded the restart config.");
+		CPrintToChat(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
 	}
 	else
-		CPrintToChat(client, "{green}[FixMemoryLeak] {white}There was an error reading the config file.");
+		CPrintToChat(client, "%s {red}There was an error reading the config file.", PREFIX_CHAT);
 
 	g_bDebug = false;
 	return Plugin_Handled;
 }
 
+public Action Command_AdminCancel(int client, int argc)
+{
+	char name[64];
+
+	if (client == 0)
+		name = "The server";
+	else if (!GetClientName(client, name, sizeof(name))) 
+		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
+
+	LogMessage("[FixMemoryLeak] %s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
+	CPrintToChatAll("{green}[SM] {olive}%s {default}has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
+	g_bPostponeRestart = !g_bPostponeRestart;
+
+	return Plugin_Handled;
+}
+
+stock int GetClientCountEx(bool countBots)
+{
+	int iRealClients = 0;
+	int iFakeClients = 0;
+
+	for(int player = 1; player <= MaxClients; player++)
+	{
+		if(IsClientConnected(player))
+		{
+			if(IsFakeClient(player))
+				iFakeClients++;
+			else
+				iRealClients++;
+		}
+	}
+	return countBots ? iFakeClients + iRealClients : iRealClients;
+}
+
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	int timeleft;
+	char sWarningText[256];
+	int playersCount = GetClientCountEx(g_cMaxPlayersCountBots.BoolValue);
 
 	if (IsRestartNeeded())
 	{
 		GetMapTimeLeft(timeleft);
+
 		if (timeleft <= 0)
 		{
-			char sWarningText[256];
+			if (g_cMaxPlayers.IntValue > -1 && playersCount > g_cMaxPlayers.IntValue)
+			{
+				g_bPostponeRestart = true;
+				LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_cMaxPlayers.IntValue);
+				CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_cMaxPlayers.IntValue);
+				return Plugin_Continue;
+			}
 
-			Format(sWarningText, sizeof(sWarningText), "Automatic server restart.\\nRejoin and have fun !");
-			ServerCommand("sm_msay %s", sWarningText);
+			if (!g_bPostponeRestart)
+			{
+				Format(sWarningText, sizeof(sWarningText), "Automatic server restart.\\nRejoin and have fun !");
 
-			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
+				if (GetEngineVersion() == Engine_CSGO)
+				{
+					PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart. Rejoin and have fun !</font>");
+					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
+					ServerCommand("sm_tsay Automatic server restart.");
+					ServerCommand("sm_msay %s", sWarningText);
+					CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart.\n{darkred}[Server] {gray}Rejoin and have fun !");
+				}
+				else
+				{
+					PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
+					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
+					ServerCommand("sm_tsay Automatic server restart.");
+					ServerCommand("sm_msay %s", sWarningText);
+					CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
+				}
+			}
+			return Plugin_Continue;
 		}
-		else
+
+		if (!g_bPostponeRestart)
 		{
-			ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
-			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
+			if (GetEngineVersion() == Engine_CSGO)
+			{
+				ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
+				PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart at the end of the map. Don't forget to rejoin after the restart!</font>");
+				CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart at the end of the map.\n{darkred}[Server] {gray}Don't forget to rejoin after the restart!");
+			}
+			else
+			{
+				PrintHintTextToAll("Automatic server restart at the end of the map.");
+				ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
+				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
+				
+			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 stock bool IsRestartNeeded()
