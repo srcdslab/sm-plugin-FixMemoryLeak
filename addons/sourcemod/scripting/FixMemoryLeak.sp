@@ -16,7 +16,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.1"
+	version = "1.2.3"
 }
 
 enum struct ConfiguredRestart {
@@ -207,6 +207,8 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 				g_bPostponeRestart = true;
 				LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_cMaxPlayers.IntValue);
 				CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_cMaxPlayers.IntValue);
+				ServerCommand("sm_msay Too many players %d>%d, server restart postponed !", playersCount, g_cMaxPlayers.IntValue);
+				ServerCommand("sm_tsay Server restart postponed !");
 				return Plugin_Continue;
 			}
 
@@ -218,7 +220,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 				{
 					PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart. Rejoin and have fun !</font>");
 					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-					ServerCommand("sm_tsay Automatic server restart.");
+					ServerCommand("sm_tsay red Automatic server restart.");
 					ServerCommand("sm_msay %s", sWarningText);
 					CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart.\n{darkred}[Server] {gray}Rejoin and have fun !");
 				}
@@ -226,7 +228,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 				{
 					PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
 					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-					ServerCommand("sm_tsay Automatic server restart.");
+					ServerCommand("sm_tsay red Automatic server restart.");
 					ServerCommand("sm_msay %s", sWarningText);
 					CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
 				}
@@ -238,14 +240,16 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		{
 			if (GetEngineVersion() == Engine_CSGO)
 			{
-				ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
+				if (!IsVoteInProgress())
+					ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
 				PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart at the end of the map. Don't forget to rejoin after the restart!</font>");
 				CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart at the end of the map.\n{darkred}[Server] {gray}Don't forget to rejoin after the restart!");
 			}
 			else
 			{
 				PrintHintTextToAll("Automatic server restart at the end of the map.");
-				ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
+				if (!IsVoteInProgress())
+					ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
 				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
 				
 			}
