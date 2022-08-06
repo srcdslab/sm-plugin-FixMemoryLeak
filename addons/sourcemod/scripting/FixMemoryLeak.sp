@@ -16,7 +16,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.3"
+	version = "1.2.4"
 }
 
 enum struct ConfiguredRestart {
@@ -49,6 +49,7 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_restartsv", Command_RestartServer, ADMFLAG_RCON, "Soft restarts the server to the nextmap.");
 	RegAdminCmd("sm_cancelrestart", Command_AdminCancel, ADMFLAG_RCON, "Cancel the soft restart server.");
+	RegAdminCmd("sm_svnextrestart", Command_SvNextRestart, ADMFLAG_RCON, "Print time until next restart.");
 	RegAdminCmd("sm_reloadrestartcfg", Command_DebugConfig, ADMFLAG_ROOT, "Reloads the configuration.");
 
 	RegServerCmd("changelevel", Hook_OnMapChange);
@@ -135,6 +136,17 @@ public Action Command_RestartServer(int client, int argc)
 	return Plugin_Handled;
 }
 
+public Action Command_SvNextRestart(int client, int argc)
+{
+	char buffer[768], rTime[768];
+	int RemaingTime = GetNextRestartTime() - GetTime();
+	FormatTime(buffer, sizeof(buffer), "%A %d %B %G @ %r", GetNextRestartTime());
+	FormatTime(rTime, sizeof(rTime), "%X", RemaingTime);
+	CPrintToChat(client, "%s {default}Nextrestart will be {green}%s", PREFIX_CHAT, buffer);
+	CPrintToChat(client, "%s {default}Remaing time until nextrestart : {green}%s", PREFIX_CHAT, rTime);
+	return Plugin_Handled;
+}
+
 public Action Command_DebugConfig(int client, int argc)
 {
 	if (argc >= 1)
@@ -144,8 +156,9 @@ public Action Command_DebugConfig(int client, int argc)
 	{
 		if (g_bDebug)
 		{
-			PrintConfiguredRestarts();
-			CPrintToChatAll("Nextrestart => %d", GetNextRestartTime());
+			CPrintToChat(client, "{red}[Debug] T = Current | {green}C = Configured.");
+			PrintConfiguredRestarts(client);
+			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
 		CPrintToChat(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
 	}
@@ -469,7 +482,7 @@ stock void GetConfigKv(KeyValues &kv, const char[] sConfigPath = CONFIG_PATH, co
 	kv.ImportFromFile(sFile);
 }
 
-stock void PrintConfiguredRestarts()
+stock void PrintConfiguredRestarts(int client)
 {
 	if (g_iConfiguredRestarts == null)
 		return;
@@ -492,9 +505,7 @@ stock void PrintConfiguredRestarts()
 		
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 
-		PrintToChatAll("Day => T %d, C %d", iCurrentDay, configuredRestart.iDay);
-		PrintToChatAll("Hour => T %d, C %d", iCurrentHour, configuredRestart.iHour);
-		PrintToChatAll("Minute => T %d, C %d", iCurrentMinute, configuredRestart.iMinute);
+		CPrintToChat(client, "{red}[Debug] {blue}Day : {default}T %d. {green}C %d {default}| {blue}Hour : {default}T %d. {green}C %d {default}| {blue}Minute : {default}T %d. {green}C %d", iCurrentDay, configuredRestart.iDay, iCurrentHour, configuredRestart.iHour, iCurrentMinute, configuredRestart.iMinute);
 	}
 }
 
