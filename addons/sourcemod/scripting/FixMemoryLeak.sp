@@ -16,7 +16,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.4"
+	version = "1.2.5"
 }
 
 enum struct ConfiguredRestart {
@@ -33,9 +33,7 @@ ConVar g_cMaxPlayersCountBots = null;
 ArrayList g_iConfiguredRestarts = null;
 
 bool g_bDebug = false;
-
 bool g_bRestart = false;
-
 bool g_bPostponeRestart = false;
 
 public void OnPluginStart()
@@ -74,11 +72,11 @@ public void OnMapStart()
 	LoadConfiguredRestarts();
 
 	char sSectionValue[PLATFORM_MAX_PATH];
-	if (GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sSectionValue) && StrEqual(sSectionValue, "1"))
+	if (GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sSectionValue) && strcmp(sSectionValue, "1") == 0)
 	{
 		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sSectionValue))
 		{
-			if (StrEqual(sSectionValue, "0") && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sSectionValue))
+			if (strcmp(sSectionValue, "0") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sSectionValue))
 			{
 				SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "1");
 				ForceChangeLevel(sSectionValue, "FixMemoryLeak");
@@ -130,7 +128,7 @@ public Action Command_RestartServer(int client, int argc)
 		return Plugin_Handled;
 	}
 
-	SetupNextRestartCurrentMap();
+	SetupNextRestartCurrentMap(true);
 	ForceChangeLevel(sNextMap, "FixMemoryLeak");
 
 	return Plugin_Handled;
@@ -206,7 +204,6 @@ stock int GetClientCountEx(bool countBots)
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	int timeleft;
-	char sWarningText[256];
 	int playersCount = GetClientCountEx(g_cMaxPlayersCountBots.BoolValue);
 
 	if (IsRestartNeeded())
@@ -227,22 +224,18 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 
 			if (!g_bPostponeRestart)
 			{
-				Format(sWarningText, sizeof(sWarningText), "Automatic server restart.\\nRejoin and have fun !");
+				ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
+				ServerCommand("sm_tsay red Automatic server restart.");
+				ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
 
 				if (GetEngineVersion() == Engine_CSGO)
 				{
 					PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart. Rejoin and have fun !</font>");
-					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-					ServerCommand("sm_tsay red Automatic server restart.");
-					ServerCommand("sm_msay %s", sWarningText);
 					CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart.\n{darkred}[Server] {gray}Rejoin and have fun !");
 				}
 				else
 				{
 					PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
-					ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-					ServerCommand("sm_tsay red Automatic server restart.");
-					ServerCommand("sm_msay %s", sWarningText);
 					CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
 				}
 			}
@@ -251,20 +244,18 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 
 		if (!g_bPostponeRestart)
 		{
+			if (!IsVoteInProgress())
+				ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
+
 			if (GetEngineVersion() == Engine_CSGO)
 			{
-				if (!IsVoteInProgress())
-					ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
 				PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart at the end of the map. Don't forget to rejoin after the restart!</font>");
 				CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart at the end of the map.\n{darkred}[Server] {gray}Don't forget to rejoin after the restart!");
 			}
 			else
 			{
 				PrintHintTextToAll("Automatic server restart at the end of the map.");
-				if (!IsVoteInProgress())
-					ServerCommand("sm_msay Automatic server restart at the end of the map.\\nDon't forget to rejoin after the restart!");
 				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
-				
 			}
 		}
 	}
@@ -311,12 +302,16 @@ public void RestartServer()
 	// ServerExecute();
 }
 
-stock void SetupNextRestartCurrentMap()
+stock void SetupNextRestartCurrentMap(bool bForce = false)
 {
 	char sNextMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(sNextMap, sizeof(sNextMap));
 
-	int iNextTime = GetNextRestartTime();
+	int iNextTime;
+	if (bForce)
+		iNextTime = GetTime();
+	else
+		iNextTime = GetNextRestartTime();
 
 	SetNextRestart(iNextTime, sNextMap);
 }
@@ -324,7 +319,18 @@ stock void SetupNextRestartCurrentMap()
 stock void SetupNextRestartNextMap()
 {
 	char sNextMap[PLATFORM_MAX_PATH];
-	GetNextMap(sNextMap, sizeof(sNextMap));
+	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
+	{
+		LogMessage("[FixMemoryLeak] Could not get the nextmap. Attempting to get nextmap via convar.");
+		ConVar cvar = null;
+		cvar = FindConVar("sm_nextmap").GetString(sNextMap, sizeof(sNextMap));
+		if (cvar == INVALID_HANDLE)
+		{
+			LogError("[FixMemoryLeak] Could not find the nextmap. Fallback on the currentmap.");
+			SetupNextRestartCurrentMap();
+			return;
+		}
+	}
 
 	int iNextTime = GetNextRestartTime();
 
@@ -536,7 +542,7 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
     {
 		char sSectionValue[10];
 		kv.GetString("day", sSectionValue, sizeof(sSectionValue), "");
-		if (StrEqual(sSectionValue, ""))
+		if (strcmp(sSectionValue, "") == 0)
 			continue;
 
 		ConfiguredRestart configuredRestart;
@@ -547,7 +553,7 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 
 		kv.GetString("hour", sSectionValue, sizeof(sSectionValue), "");
 
-		if (StrEqual(sSectionValue, ""))
+		if (strcmp(sSectionValue, "") == 0)
 			continue;
 
 		configuredRestart.iHour = StringToInt(sSectionValue);
@@ -556,7 +562,7 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 			continue;
 
 		kv.GetString("minute", sSectionValue, sizeof(sSectionValue), "");
-		if (StrEqual(sSectionValue, ""))
+		if (strcmp(sSectionValue, "") == 0)
 			continue;
 
 		configuredRestart.iMinute = StringToInt(sSectionValue);
@@ -610,7 +616,7 @@ stock bool GetSectionValue(const char[] sConfigName, const char[] sSectionName, 
 
 	delete kv;
 
-	if (StrEqual(sSectionValue, ""))
+	if (strcmp(sSectionValue, "") == 0)
 		return false;
 
 	return true;
