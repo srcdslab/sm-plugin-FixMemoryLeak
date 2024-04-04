@@ -322,14 +322,15 @@ stock void SetupNextRestartNextMap()
 	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
 	{
 		LogMessage("[FixMemoryLeak] Could not get the nextmap. Attempting to get nextmap via convar.");
-		ConVar cvar = null;
-		cvar = FindConVar("sm_nextmap").GetString(sNextMap, sizeof(sNextMap));
+		ConVar cvar = FindConVar("sm_nextmap");
 		if (cvar == INVALID_HANDLE)
 		{
 			LogError("[FixMemoryLeak] Could not find the nextmap. Fallback on the currentmap.");
 			SetupNextRestartCurrentMap();
 			return;
 		}
+
+		GetConVarString(cvar, sNextMap, sizeof(sNextMap));
 	}
 
 	int iNextTime = GetNextRestartTime();
