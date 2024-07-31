@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.5"
+	version = "1.2.6"
 }
 
 enum struct ConfiguredRestart {
@@ -309,16 +309,8 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 				ServerCommand("sm_tsay red Automatic server restart.");
 				ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
 
-				if (GetEngineVersion() == Engine_CSGO)
-				{
-					PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart. Rejoin and have fun !</font>");
-					CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart.\n{darkred}[Server] {gray}Rejoin and have fun !");
-				}
-				else
-				{
-					PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
-					CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
-				}
+				PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
+				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
 			}
 			return Plugin_Continue;
 		}
@@ -328,16 +320,8 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 			if (!IsVoteInProgress())
 				ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
 
-			if (GetEngineVersion() == Engine_CSGO)
-			{
-				PrintHintTextToAll("<font class='fontSize-l' color='#ff0000'>[Server]</font> <font class='fontSize-l'>Automatic server restart at the end of the map. Don't forget to rejoin after the restart!</font>");
-				CPrintToChatAll("{darkred}[Server] {gray}Automatic server restart at the end of the map.\n{darkred}[Server] {gray}Don't forget to rejoin after the restart!");
-			}
-			else
-			{
-				PrintHintTextToAll("Automatic server restart at the end of the map.");
-				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
-			}
+			PrintHintTextToAll("Automatic server restart at the end of the map.");
+			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
 		}
 	}
 	return Plugin_Continue;
