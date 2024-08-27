@@ -19,7 +19,8 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.6"
+	version = "1.2.6",
+	url = "https://github.com/srcdslab"
 }
 
 enum struct ConfiguredRestart
