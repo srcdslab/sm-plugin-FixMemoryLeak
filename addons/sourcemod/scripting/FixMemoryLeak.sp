@@ -8,11 +8,11 @@
 #tryinclude <mapchooser_extended>
 #define REQUIRE_PLUGIN
 
-#define CONFIG_PATH				"configs/fixmemoryleak.cfg"
-#define	CONFIG_KV_NAME			"server"
-#define	CONFIG_KV_INFO_NAME		"info"
-#define	CONFIG_KV_RESTART_NAME	"restart"
-#define PREFIX_CHAT				"{olive}[FixMemoryLeak]"
+#define CONFIG_PATH             "configs/fixmemoryleak.cfg"
+#define CONFIG_KV_NAME          "server"
+#define CONFIG_KV_INFO_NAME     "info"
+#define CONFIG_KV_RESTART_NAME  "restart"
+#define PREFIX_CHAT             "{olive}[FixMemoryLeak]"
 
 public Plugin myinfo =
 {
@@ -22,7 +22,8 @@ public Plugin myinfo =
 	version = "1.2.6"
 }
 
-enum struct ConfiguredRestart {
+enum struct ConfiguredRestart
+{
 	int iDay;
 	int iHour;
 	int iMinute;
@@ -54,14 +55,14 @@ public void OnPluginStart()
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
-	//Hook CVARs
+	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
 	HookConVarChange(g_cRestartDelay, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayers, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayersCountBots, OnCvarChanged);
 	HookConVarChange(g_cReloadFirstMap, OnCvarChanged);
-	
-	//Initialize values
+
+	// Initialize values
 	g_iMode = GetConVarInt(g_cRestartMode);
 	g_iDelay = GetConVarInt(g_cRestartDelay);
 	g_iMaxPlayers = GetConVarInt(g_cMaxPlayers);
@@ -254,7 +255,7 @@ public Action Command_AdminCancel(int client, int argc)
 
 	if (client == 0)
 		name = "The server";
-	else if (!GetClientName(client, name, sizeof(name))) 
+	else if (!GetClientName(client, name, sizeof(name)))
 		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
 
 	LogMessage("%s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
@@ -269,7 +270,7 @@ stock int GetClientCountEx(bool countBots)
 	int iRealClients = 0;
 	int iFakeClients = 0;
 
-	for(int player = 1; player <= MaxClients; player++)
+	for (int player = 1; player <= MaxClients; player++)
 	{
 		if (IsClientConnected(player))
 		{
@@ -493,7 +494,7 @@ stock int GetConfiguredClosestTime()
 		return iNextTime;
 
 	for (int i = 0; i < g_iConfiguredRestarts.Length; i++)
-	{		
+	{
 		ConfiguredRestart configuredRestart;
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 
@@ -614,7 +615,7 @@ stock void PrintConfiguredRestarts(int client)
 	for (int i = 0; i < g_iConfiguredRestarts.Length; i++)
 	{
 		ConfiguredRestart configuredRestart;
-		
+
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 
 		CPrintToChat(client, "{red}[Debug] {blue}Day : {default}T %d. {green}C %d {default}| {blue}Hour : {default}T %d. {green}C %d {default}| {blue}Minute : {default}T %d. {green}C %d", iCurrentDay, configuredRestart.iDay, iCurrentHour, configuredRestart.iHour, iCurrentMinute, configuredRestart.iMinute);
@@ -644,8 +645,8 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 	if (g_iConfiguredRestarts == null)
 		g_iConfiguredRestarts = new ArrayList(sizeof(ConfiguredRestart));
 
-	do    
-    {
+	do
+	{
 		char sSectionValue[10];
 		kv.GetString("day", sSectionValue, sizeof(sSectionValue), "");
 		if (strcmp(sSectionValue, "") == 0)
@@ -678,7 +679,7 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 
 		g_iConfiguredRestarts.PushArray(configuredRestart, sizeof(configuredRestart));
 
-    } while(kv.GotoNextKey());
+	} while(kv.GotoNextKey());
 
 	delete kv;
 
