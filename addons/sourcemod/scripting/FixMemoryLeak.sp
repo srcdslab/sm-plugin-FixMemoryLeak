@@ -13,6 +13,7 @@
 #define CONFIG_KV_INFO_NAME     "info"
 #define CONFIG_KV_RESTART_NAME  "restart"
 #define PREFIX_CHAT             "{olive}[FixMemoryLeak]"
+#define PREFIX_CHAT_NOCOLOR     "[FixMemoryLeak]"
 
 public Plugin myinfo =
 {
@@ -212,7 +213,10 @@ public Action Command_SvNextRestart(int client, int argc)
 			int iDays = iHours / 24;
 			iHours = iHours % 24;
 
-			CPrintToChat(client, "%s {default}Next restart will be in {green}%d days %d hours %d minutes", PREFIX_CHAT, iDays, iHours, iMinsUntilRestart % 60);
+			if (client == 0)
+				PrintToServer("%s Next restart will be in %d days %d hours %d minutes", PREFIX_CHAT_NOCOLOR, iDays, iHours, iMinsUntilRestart % 60);
+			else
+				CPrintToChat(client, "%s {default}Next restart will be in {green}%d days %d hours %d minutes", PREFIX_CHAT, iDays, iHours, iMinsUntilRestart % 60);
 		}
 		case 1,2:
 		{
@@ -220,11 +224,19 @@ public Action Command_SvNextRestart(int client, int argc)
 			int RemaingTime = GetNextRestartTime() - GetTime();
 			FormatTime(buffer, sizeof(buffer), "%A %d %B %G @ %r", GetNextRestartTime());
 			FormatTime(rTime, sizeof(rTime), "%X", RemaingTime);
-			CPrintToChat(client, "%s {default}Next restart will be {green}%s", PREFIX_CHAT, buffer);
-			CPrintToChat(client, "%s {default}Remaing time until next restart : {green}%s", PREFIX_CHAT, rTime);
+
+			if (client == 0)
+			{
+				PrintToServer("%s Next restart will be %s", PREFIX_CHAT_NOCOLOR, buffer);
+				PrintToServer("%s Remaing time until next restart : %s", PREFIX_CHAT_NOCOLOR, rTime);
+			}
+			else
+			{
+				CPrintToChat(client, "%s {default}Next restart will be {green}%s", PREFIX_CHAT, buffer);
+				CPrintToChat(client, "%s {default}Remaing time until next restart : {green}%s", PREFIX_CHAT, rTime);
+			}
 		}
 	}
-
 	return Plugin_Handled;
 }
 
@@ -241,11 +253,19 @@ public Action Command_DebugConfig(int client, int argc)
 			PrintConfiguredRestarts(client);
 			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
-		CPrintToChat(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
+
+		if (client == 0)
+			PrintToServer("%s Successfully reloaded the restart config.", PREFIX_CHAT_NOCOLOR);
+		else
+			CPrintToChat(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
 	}
 	else
-		CPrintToChat(client, "%s {red}There was an error reading the config file.", PREFIX_CHAT);
-
+	{
+		if (client == 0)
+			PrintToServer("%s There was an error reading the config file.", PREFIX_CHAT_NOCOLOR);
+		else
+			CPrintToChat(client, "%s {red}There was an error reading the config file.", PREFIX_CHAT);
+	}
 	g_bDebug = false;
 	return Plugin_Handled;
 }
