@@ -288,45 +288,44 @@ stock int GetClientCountEx(bool countBots)
 
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
+	if (!IsRestartNeeded()) return Plugin_Continue;
+
 	int timeleft;
 	int playersCount = GetClientCountEx(g_bCountBots);
 
-	if (IsRestartNeeded())
+	GetMapTimeLeft(timeleft);
+
+	if (timeleft <= 0)
 	{
-		GetMapTimeLeft(timeleft);
-
-		if (timeleft <= 0)
+		if (g_iMaxPlayers > -1 && playersCount > g_iMaxPlayers)
 		{
-			if (g_iMaxPlayers > -1 && playersCount > g_iMaxPlayers)
-			{
-				g_bPostponeRestart = true;
-				LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				ServerCommand("sm_msay Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				ServerCommand("sm_tsay Server restart postponed !");
-				return Plugin_Continue;
-			}
-
-			if (!g_bPostponeRestart)
-			{
-				ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-				ServerCommand("sm_tsay red Automatic server restart.");
-				ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
-
-				PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
-				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
-			}
+			g_bPostponeRestart = true;
+			LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
+			CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_msay Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_tsay Server restart postponed !");
 			return Plugin_Continue;
 		}
 
 		if (!g_bPostponeRestart)
 		{
-			if (!IsVoteInProgress())
-				ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
+			ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
+			ServerCommand("sm_tsay red Automatic server restart.");
+			ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
 
-			PrintHintTextToAll("Automatic server restart at the end of the map.");
-			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
+			PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
+			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
 		}
+		return Plugin_Continue;
+	}
+
+	if (!g_bPostponeRestart)
+	{
+		if (!IsVoteInProgress())
+			ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
+
+		PrintHintTextToAll("Automatic server restart at the end of the map.");
+		CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
 	}
 	return Plugin_Continue;
 }
