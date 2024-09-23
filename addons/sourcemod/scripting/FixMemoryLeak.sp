@@ -169,13 +169,10 @@ public Action Hook_OnMapChange(int args)
 
 public Action Hook_OnServerQuit(int args)
 {
-	if (!g_bRestart)
-	{
-		SetupNextRestartCurrentMap();
-		SoftServerRestart();
-		return Plugin_Handled;
-	}
-	return Plugin_Continue;
+	if (g_bRestart) return Plugin_Continue;
+	SetupNextRestartCurrentMap();
+	SoftServerRestart();
+	return Plugin_Handled;
 }
 
 public Action Hook_OnServerRestart(int args)
