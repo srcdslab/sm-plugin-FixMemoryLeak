@@ -13,7 +13,6 @@
 #define CONFIG_KV_INFO_NAME     "info"
 #define CONFIG_KV_RESTART_NAME  "restart"
 #define PREFIX_CHAT             "{olive}[FixMemoryLeak]"
-#define PREFIX_CHAT_NOCOLOR     "[FixMemoryLeak]"
 
 public Plugin myinfo =
 {
