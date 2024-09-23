@@ -65,11 +65,11 @@ public void OnPluginStart()
 	HookConVarChange(g_cReloadFirstMap, OnCvarChanged);
 
 	// Initialize values
-	g_iMode = GetConVarInt(g_cRestartMode);
-	g_iDelay = GetConVarInt(g_cRestartDelay);
-	g_iMaxPlayers = GetConVarInt(g_cMaxPlayers);
-	g_bCountBots = GetConVarBool(g_cMaxPlayersCountBots);
-	g_bReloadFirstMap = GetConVarBool(g_cReloadFirstMap);
+	g_iMode = g_cRestartMode.IntValue;
+	g_iDelay = g_cRestartDelay.IntValue;
+	g_iMaxPlayers = g_cMaxPlayers.IntValue;
+	g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
+	g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 
 	AutoExecConfig(true);
 
@@ -96,15 +96,15 @@ public void OnPluginEnd()
 public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == g_cRestartMode)
-		g_iMode = GetConVarInt(g_cRestartMode);
+		g_iMode = g_cRestartMode.IntValue;
 	else if (convar == g_cRestartDelay)
-		g_iDelay = GetConVarInt(g_cRestartDelay);
+		g_iDelay = g_cRestartDelay.IntValue;
 	else if (convar == g_cMaxPlayers)
-		g_iMaxPlayers = GetConVarInt(g_cMaxPlayers);
+		g_iMaxPlayers = g_cMaxPlayers.IntValue;
 	else if (convar == g_cMaxPlayersCountBots)
-		g_bCountBots = GetConVarBool(g_cMaxPlayersCountBots);
+		g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
 	else if (convar == g_cReloadFirstMap)
-		g_bReloadFirstMap = GetConVarBool(g_cReloadFirstMap);
+		g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 
 	// Convar get changed, we need to check if we need to update the next restart time
 	OnMapStart();
