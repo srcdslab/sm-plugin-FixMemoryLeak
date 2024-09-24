@@ -1,11 +1,21 @@
 "Phrases"
 {
+    "Prefix"
+    {
+        "en"            "{green}[SM]"
+    }
+
+    "Alert"
+    {
+        "en"            "{fullred}[Server]"
+    }
+
     // Command_RestartServer
     "No Nextmap Set"
     {
-        "en"            "{green}[SM] {default}Next map has not be set, please set one"
-        "zho"           "{green}[SM] {default}請先設下張圖然後在重試"
-        "chi"           "{green}[SM] {default}请先设下张图然后在重试"
+        "en"            "{default}Next map has not be set, please set one"
+        "zho"           "{default}請先設下張圖然後在重試"
+        "chi"           "{default}请先设下张图然后在重试"
     }
 
     // Command_SvNextRestart
@@ -16,9 +26,9 @@
         // 3: Minutes
         "#format"       "{1:i},{2:i},{3:i}"
 
-        "en"            "{green}[SM] {default}Next restart will be in {green}{1} days {2} hours {3} minutes"
-        "zho"           "{green}[SM] {default}伺服器將在 {green}{1} 天 {2} 小時 {3} 分鐘重啓"
-        "chi"           "{green}[SM] {default}伺服器将在 {green}{1} 天 {2} 小时 {3} 分钟重启"
+        "en"            "{default}Next restart will be in {green}{1} days {2} hours {3} minutes"
+        "zho"           "{default}伺服器將在 {green}{1} 天 {2} 小時 {3} 分鐘重啓"
+        "chi"           "{default}伺服器将在 {green}{1} 天 {2} 小时 {3} 分钟重启"
     }
 
     "Next Restart Time"
@@ -26,9 +36,9 @@
         // 1: Timestamp
         "#format"       "{1:s}"
 
-        "en"            "{green}[SM] {default}Next server restart will be at {green}{1}"
-        "zho"           "{green}[SM] {default}伺服器會在 {green}{1} {default}重啓"
-        "chi"           "{green}[SM] {default}伺服器会在 {green}{1} {default}重启"
+        "en"            "{default}Next server restart will be at {green}{1}"
+        "zho"           "{default}伺服器會在 {green}{1} {default}重啓"
+        "chi"           "{default}伺服器会在 {green}{1} {default}重启"
     }
 
     "Remaining Time"
@@ -36,24 +46,24 @@
         // 1: Remaining time
         "#format"       "{1:s}"
 
-        "en"            "{green}[SM] {default}Remaining time until next restart: {green}{1}"
-        "zho"           "{green}[SM] {default}離伺服器重啓剩餘：{green}{1}"
-        "chi"           "{green}[SM] {default}离伺服器重启剩余：{green}{1}"
+        "en"            "{default}Remaining time until next restart: {green}{1}"
+        "zho"           "{default}離伺服器重啓剩餘：{green}{1}"
+        "chi"           "{default}离伺服器重启剩余：{green}{1}"
     }
 
     // Command_DebugConfig
     "Reload Config Success"
     {
-        "en"            "{green}[SM] {default}Successfully reloaded the restart config."
-        "zho"           "{green}[SM] {default}以成功重新加載插件配置。"
-        "chi"           "{green}[SM] {default}以成功重新加载插件配置。"
+        "en"            "{default}Successfully reloaded the restart config."
+        "zho"           "{default}以成功重新加載插件配置。"
+        "chi"           "{default}以成功重新加载插件配置。"
     }
 
     "Reload Config Error"
     {
-        "en"            "{green}[SM] {default}There was an {red}error {default}reading the config file."
-        "zho"           "{green}[SM] {default}讀取插件配置時出現{red}錯誤{default}。"
-        "chi"           "{green}[SM] {default}读取插件配置时出现{red}错误{default}。"
+        "en"            "{default}There was an {red}error {default}reading the config file."
+        "zho"           "{default}讀取插件配置時出現{red}錯誤{default}。"
+        "chi"           "{default}读取插件配置时出现{red}错误{default}。"
     }
 
     // Command_AdminCancel
@@ -63,9 +73,9 @@
         // 2: Action
         "#format"       "{1:s},{2:t}"
 
-        "en"            "{green}[SM] {olive}{1} {default}has {2} the server restart!"
-        "zho"           "{green}[SM] {olive}{1} {default}管理員以{2}服務器重啓。"
-        "chi"           "{green}[SM] {olive}{1} {default}管理员以{2}服务器重启。"
+        "en"            "{olive}{1} {default}has {2} the server restart!"
+        "zho"           "{olive}{1} {default}管理員以{2}服務器重啓。"
+        "chi"           "{olive}{1} {default}管理员以{2}服务器重启。"
     }
 
     "Scheduled"
@@ -89,9 +99,9 @@
         // 2: Max allowed players
         "#format"       "{1:i},{2:i}"
 
-        "en"            "{green}[SM] {default}Server restart postponed! (Too many players: {green}{1}{default}>{green}{2}{default})"
-        "zho"           "{green}[SM] {default}伺服器重啓已被延後！（玩家數量一超越插件設定：{green}{1}{default}>{green}{2}{default})"
-        "chi"           "{green}[SM] {default}伺服器重启已被延后！（玩家数量一超越插件设定：{green}{1}{default}>{green}{2}{default})"
+        "en"            "{default}Server restart postponed! (Too many players: {green}{1}{default}>{green}{2}{default})"
+        "zho"           "{default}伺服器重啓已被延後！（玩家數量一超越插件設定：{green}{1}{default}>{green}{2}{default})"
+        "chi"           "{default}伺服器重启已被延后！（玩家数量一超越插件设定：{green}{1}{default}>{green}{2}{default})"
     }
 
     "Restart Postponed Other"
@@ -107,9 +117,12 @@
 
     "Restart Start Chat"
     {
-        "en"            "{fullred}[Server] {white}Automatic server restart!.\n{green}[SM] {white}Rejoin and have fun!"
-        "zho"           "{fullred}[Server] {white}伺服器即將重啓！\n{green}[SM] {white}記得重連伺服器，祝你玩的愉快!"
-        "chi"           "{fullred}[Server] {white}伺服器即将重启！\n{green}[SM] {white}记得重连伺服器，祝你玩的愉快!"
+        // 1: Alert
+        "#format"       "{1:t}"
+
+        "en"            "{white}Automatic server restart!.\n{2} {white}Rejoin and have fun!"
+        "zho"           "{white}伺服器即將重啓！\n{2} {white}記得重連伺服器，祝你玩的愉快!"
+        "chi"           "{white}伺服器即将重启！\n{2} {white}记得重连伺服器，祝你玩的愉快!"
     }
 
     "Restart Start Other"
@@ -121,9 +134,12 @@
 
     "Restart Soon Chat"
     {
-        "en"            "{fullred}[Server] {default}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!"
-        "zho"           "{fullred}[Server] {default}伺服器將在地圖結束之後重啓。\n{fullred}[Server] {white}記得重啓之後要重連伺服器！"
-        "chi"           "{fullred}[Server] {default}伺服器将在地图结束之后重启。\n{fullred}[Server] {white}记得重启之后要重连伺服器！"
+        // 1: Alert
+        "#format"       "{1:t}"
+
+        "en"            "{default}Automatic server restart at the end of the map.\n{2} {white}Don't forget to rejoin after the restart!"
+        "zho"           "{default}伺服器將在地圖結束之後重啓。\n{2} {white}記得重啓之後要重連伺服器！"
+        "chi"           "{default}伺服器将在地图结束之后重启。\n{2} {white}记得重启之后要重连伺服器！"
     }
 
     "Restart Soon Other"

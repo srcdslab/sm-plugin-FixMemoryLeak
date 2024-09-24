@@ -190,7 +190,7 @@ public Action Command_RestartServer(int client, int argc)
 	char sNextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
 	{
-		CPrintToChat(client, "%t", "No Nextmap Set");
+		CPrintToChat(client, "%t %t", "Prefix", "No Nextmap Set");
 		return Plugin_Handled;
 	}
 
@@ -212,7 +212,7 @@ public Action Command_SvNextRestart(int client, int argc)
 			int iDays = iHours / 24;
 			iHours = iHours % 24;
 
-			CReplyToCommand(client, "%t", "Next Restart", iDays, iHours, iMinsUntilRestart % 60);
+			CReplyToCommand(client, "%t %t", "Prefix", "Next Restart", iDays, iHours, iMinsUntilRestart % 60);
 		}
 		case 1,2:
 		{
@@ -221,8 +221,8 @@ public Action Command_SvNextRestart(int client, int argc)
 			FormatTime(buffer, sizeof(buffer), "%A %d %B %G @ %r", GetNextRestartTime());
 			FormatTime(rTime, sizeof(rTime), "%X", RemaingTime);
 
-			CReplyToCommand(client, "%t", "Next Restart Time", buffer);
-			CReplyToCommand(client, "%t", "Remaining Time", rTime);
+			CReplyToCommand(client, "%t %t", "Prefix", "Next Restart Time", buffer);
+			CReplyToCommand(client, "%t %t", "Prefix", "Remaining Time", rTime);
 		}
 	}
 	return Plugin_Handled;
@@ -242,11 +242,11 @@ public Action Command_DebugConfig(int client, int argc)
 			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
 
-		CReplyToCommand(client, "%t", "Reload Config Success");
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
 	}
 	else
 	{
-		CReplyToCommand(client, "%t", "Reload Config Error");
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Error");
 	}
 	g_bDebug = false;
 	return Plugin_Handled;
@@ -262,7 +262,7 @@ public Action Command_AdminCancel(int client, int argc)
 		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
 
 	LogMessage("%s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
-	CPrintToChatAll("%t", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
+	CPrintToChatAll("%t %t", "Prefix", "Server Restart", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
 	g_bPostponeRestart = !g_bPostponeRestart;
 
 	return Plugin_Handled;
@@ -301,7 +301,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		{
 			g_bPostponeRestart = true;
 			LogMessage("Server restart postponed! (Too many players: %d>%d)", playersCount, g_iMaxPlayers);
-			CPrintToChatAll("%t", "Restart Postponed Chat", playersCount, g_iMaxPlayers);
+			CPrintToChatAll("%t %t", "Prefix", "Restart Postponed Chat", playersCount, g_iMaxPlayers);
 			PrintHintTextToAll("%t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
 			ServerCommand("sm_msay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
 			ServerCommand("sm_csay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
@@ -314,7 +314,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 			ServerCommand("sm_msay %t", "Restart Start Other");
 
 			PrintHintTextToAll("%t", "Restart Start Other");
-			CPrintToChatAll("%t", "Restart Start Chat");
+			CPrintToChatAll("%t %t", "Alert", "Restart Start Chat", "Alert");
 		}
 		return Plugin_Continue;
 	}
@@ -325,7 +325,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 			ServerCommand("sm_msay %t", "Restart Soon Other");
 
 		PrintHintTextToAll("%t", "Restart Soon Other");
-		CPrintToChatAll("%t", "Restart Soon Chat");
+		CPrintToChatAll("%t %t", "Alert", "Restart Soon Chat", "Alert");
 	}
 	return Plugin_Continue;
 }
