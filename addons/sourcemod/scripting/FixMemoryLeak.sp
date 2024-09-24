@@ -12,7 +12,6 @@
 #define CONFIG_KV_NAME          "server"
 #define CONFIG_KV_INFO_NAME     "info"
 #define CONFIG_KV_RESTART_NAME  "restart"
-#define PREFIX_CHAT             "{olive}[FixMemoryLeak]"
 
 public Plugin myinfo =
 {
@@ -50,6 +49,10 @@ int g_iMaxPlayers;
 
 public void OnPluginStart()
 {
+	// Load translations
+	LoadTranslations("FixMemoryLeak.phrases");
+
+	// Initalize cvars
 	g_cRestartMode = CreateConVar("sm_restart_mode", "2", "2 = Add configured days and sm_restart_delay, 1 = Only configured days, 0 = Only sm_restart_delay.", FCVAR_NOTIFY, true, 0.0, true, 2.0);
 	g_cRestartDelay = CreateConVar("sm_restart_delay", "1440", "How much time before a server restart in minutes.", FCVAR_NOTIFY, true, 1.0, true, 100000.0);
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
@@ -187,7 +190,7 @@ public Action Command_RestartServer(int client, int argc)
 	char sNextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
 	{
-		CPrintToChat(client, "%s {red}No nextmap have been set, please set one.", PREFIX_CHAT);
+		CPrintToChat(client, "%t", "No Nextmap Set");
 		return Plugin_Handled;
 	}
 
@@ -209,7 +212,7 @@ public Action Command_SvNextRestart(int client, int argc)
 			int iDays = iHours / 24;
 			iHours = iHours % 24;
 
-			CReplyToCommand(client, "%s {default}Next restart will be in {green}%d days %d hours %d minutes", PREFIX_CHAT, iDays, iHours, iMinsUntilRestart % 60);
+			CReplyToCommand(client, "%t", "Next Restart", iDays, iHours, iMinsUntilRestart % 60);
 		}
 		case 1,2:
 		{
@@ -218,8 +221,8 @@ public Action Command_SvNextRestart(int client, int argc)
 			FormatTime(buffer, sizeof(buffer), "%A %d %B %G @ %r", GetNextRestartTime());
 			FormatTime(rTime, sizeof(rTime), "%X", RemaingTime);
 
-			CReplyToCommand(client, "%s {default}Next restart will be {green}%s", PREFIX_CHAT, buffer);
-			CReplyToCommand(client, "%s {default}Remaing time until next restart : {green}%s", PREFIX_CHAT, rTime);
+			CReplyToCommand(client, "%t", "Next Restart Time", buffer);
+			CReplyToCommand(client, "%t", "Remaining Time", rTime);
 		}
 	}
 	return Plugin_Handled;
@@ -239,11 +242,11 @@ public Action Command_DebugConfig(int client, int argc)
 			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
 
-		CReplyToCommand(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
+		CReplyToCommand(client, "%t", "Reload Config Success");
 	}
 	else
 	{
-		CReplyToCommand(client, "%s {red}There was an error reading the config file.", PREFIX_CHAT);
+		CReplyToCommand(client, "%t", "Reload Config Error");
 	}
 	g_bDebug = false;
 	return Plugin_Handled;
@@ -259,7 +262,7 @@ public Action Command_AdminCancel(int client, int argc)
 		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
 
 	LogMessage("%s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
-	CPrintToChatAll("{green}[SM] {olive}%s {default}has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
+	CPrintToChatAll("%t", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
 	g_bPostponeRestart = !g_bPostponeRestart;
 
 	return Plugin_Handled;
@@ -297,21 +300,21 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		if (g_iMaxPlayers > -1 && playersCount > g_iMaxPlayers)
 		{
 			g_bPostponeRestart = true;
-			LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-			CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-			ServerCommand("sm_msay Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-			ServerCommand("sm_tsay Server restart postponed !");
+			LogMessage("Server restart postponed! (Too many players: %d>%d)", playersCount, g_iMaxPlayers);
+			CPrintToChatAll("%t", "Restart Postponed Chat", playersCount, g_iMaxPlayers);
+			PrintHintTextToAll("%t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_msay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_csay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
 			return Plugin_Continue;
 		}
 
 		if (!g_bPostponeRestart)
 		{
-			ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-			ServerCommand("sm_tsay red Automatic server restart.");
-			ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
+			ServerCommand("sm_csay %t", "Restart Start Other");
+			ServerCommand("sm_msay %t", "Restart Start Other");
 
-			PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
-			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
+			PrintHintTextToAll("%t", "Restart Start Other");
+			CPrintToChatAll("%t", "Restart Start Chat");
 		}
 		return Plugin_Continue;
 	}
@@ -319,10 +322,10 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 	if (!g_bPostponeRestart)
 	{
 		if (!IsVoteInProgress())
-			ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
+			ServerCommand("sm_msay %t", "Restart Soon Other");
 
-		PrintHintTextToAll("Automatic server restart at the end of the map.");
-		CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
+		PrintHintTextToAll("%t", "Restart Soon Other");
+		CPrintToChatAll("%t", "Restart Soon Chat");
 	}
 	return Plugin_Continue;
 }
