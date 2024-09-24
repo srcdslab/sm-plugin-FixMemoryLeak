@@ -172,7 +172,9 @@ public Action Hook_OnMapChange(int args)
 
 public Action Hook_OnServerQuit(int args)
 {
-	if (g_bRestart) return Plugin_Continue;
+	if (g_bRestart)
+		return Plugin_Continue;
+
 	SetupNextRestartCurrentMap();
 	SoftServerRestart();
 	return Plugin_Handled;
@@ -288,7 +290,8 @@ stock int GetClientCountEx(bool countBots)
 
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
-	if (!IsRestartNeeded()) return Plugin_Continue;
+	if (!IsRestartNeeded())
+		return Plugin_Continue;
 
 	int timeleft;
 	int playersCount = GetClientCountEx(g_bCountBots);
