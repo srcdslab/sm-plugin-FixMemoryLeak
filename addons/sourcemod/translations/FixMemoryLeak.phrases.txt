@@ -16,6 +16,8 @@
         "en"            "{default}Next map has not be set, please set one"
         "zho"           "{default}請先設下張圖然後在重試"
         "chi"           "{default}请先设下张图然后在重试"
+        "fr"            "{default}La prochaine map n'a pas été définie, veuillez en définir une"
+        "ru"            "{default}Следующая карта не установлена, пожалуйста, установите одну"
     }
 
     // Command_SvNextRestart
@@ -29,6 +31,8 @@
         "en"            "{default}Next restart will be in {green}{1} days {2} hours {3} minutes"
         "zho"           "{default}伺服器將在 {green}{1} 天 {2} 小時 {3} 分鐘重啓"
         "chi"           "{default}伺服器将在 {green}{1} 天 {2} 小时 {3} 分钟重启"
+        "fr"            "{default}Le prochain redémarrage aura lieu dans {green}{1} jours {2} heures {3} minutes"
+        "ru"            "{default}Следующая перезагрузка будет через {green}{1} дней {2} часов {3} минут"
     }
 
     "Next Restart Time"
@@ -39,6 +43,8 @@
         "en"            "{default}Next server restart will be at {green}{1}"
         "zho"           "{default}伺服器會在 {green}{1} {default}重啓"
         "chi"           "{default}伺服器会在 {green}{1} {default}重启"
+        "fr"            "{default}Le prochain redémarrage du serveur aura lieu à {green}{1}"
+        "ru"            "{default}Следующая перезагрузка сервера будет в {green}{1}"
     }
 
     "Remaining Time"
@@ -49,6 +55,8 @@
         "en"            "{default}Remaining time until next restart: {green}{1}"
         "zho"           "{default}離伺服器重啓剩餘：{green}{1}"
         "chi"           "{default}离伺服器重启剩余：{green}{1}"
+        "fr"            "{default}Temps restant avant le prochain redémarrage : {green}{1}"
+        "ru"            "{default}Оставшееся время до следующей перезагрузки: {green}{1}"
     }
 
     // Command_DebugConfig
@@ -57,6 +65,8 @@
         "en"            "{default}Successfully reloaded the restart config."
         "zho"           "{default}以成功重新加載插件配置。"
         "chi"           "{default}以成功重新加载插件配置。"
+        "fr"            "{default}Le fichier de configuration a été rechargé avec succès."
+        "ru"            "{default}Конфигурация перезагружена успешно."
     }
 
     "Reload Config Error"
@@ -64,6 +74,8 @@
         "en"            "{default}There was an {red}error {default}reading the config file."
         "zho"           "{default}讀取插件配置時出現{red}錯誤{default}。"
         "chi"           "{default}读取插件配置时出现{red}错误{default}。"
+        "fr"            "{default}Une {red}erreur {default}est survenue lors de la lecture du fichier de configuration."
+        "ru"            "{default}При чтении файла конфигурации произошла {red}ошибка{default}."
     }
 
     // Command_AdminCancel
@@ -76,6 +88,8 @@
         "en"            "{olive}{1} {default}has {2} the server restart!"
         "zho"           "{olive}{1} {default}管理員以{2}服務器重啓。"
         "chi"           "{olive}{1} {default}管理员以{2}服务器重启。"
+        "fr"            "{olive}{1} {default}a {2} le redémarrage du serveur !"
+        "ru"            "{olive}{1} {default}{2} перезагрузку сервера!"
     }
 
     "Scheduled"
@@ -83,6 +97,8 @@
         "en"            "scheduled"
         "zho"           "計劃"
         "chi"           "计划"
+        "fr"            "planifié"
+        "ru"            "запланировано"
     }
 
     "Canceled"
@@ -90,6 +106,8 @@
         "en"            "canceled"
         "zho"           "取消"
         "chi"           "取消"
+        "fr"            "annulé"
+        "ru"            "отменено"
     }
 
     // OnRoundEnd
@@ -102,6 +120,8 @@
         "en"            "{default}Server restart postponed! (Too many players: {green}{1}{default}>{green}{2}{default})"
         "zho"           "{default}伺服器重啓已被延後！（玩家數量一超越插件設定：{green}{1}{default}>{green}{2}{default})"
         "chi"           "{default}伺服器重启已被延后！（玩家数量一超越插件设定：{green}{1}{default}>{green}{2}{default})"
+        "fr"            "{default}Le redémarrage du serveur a été reporté ! (Trop de joueurs : {green}{1}{default}>{green}{2}{default})"
+        "ru"            "{default}Перезагрузка сервера отложена! (Слишком много игроков: {green}{1}{default}>{green}{2}{default})"
     }
 
     "Restart Postponed Other"
@@ -113,6 +133,8 @@
         "en"            "Server restart postponed!\n(Too many players: {1}>{2})"
         "zho"           "伺服器重啓已被延後！\n(玩家數量一超越插件設定：{1}>{2})"
         "chi"           "伺服器重启已被延后！\n(玩家数量一超越插件设定：{1}>{2})"
+        "fr"            "Le redémarrage du serveur a été reporté !\n(Trop de joueurs : {1}>{2})"
+        "ru"            "Перезагрузка сервера отложена!\n(Слишком много игроков: {1}>{2})"
     }
 
     "Restart Start Chat"
@@ -123,6 +145,8 @@
         "en"            "{white}Automatic server restart!.\n{1} {white}Rejoin and have fun!"
         "zho"           "{white}伺服器即將重啓！\n{1} {white}記得重連伺服器，祝你玩的愉快!"
         "chi"           "{white}伺服器即将重启！\n{1} {white}记得重连伺服器，祝你玩的愉快!"
+        "fr"            "{white}Redémarrage automatique du serveur !.\n{1} {white}Rejoignez et amusez-vous !"
+        "ru"            "{white}Автоматическая перезагрузка сервера!.\n{1} {white}Подключайтесь и веселитесь!"
     }
 
     "Restart Start Other"
@@ -130,6 +154,8 @@
         "en"            "Automatic server restart!.\nRejoin and have fun!"
         "zho"           "伺服器即將重啓！\n記得重連伺服器，祝你玩的愉快!"
         "chi"           "伺服器即将重启！\n记得重连伺服器，祝你玩的愉快!"
+        "fr"            "Redémarrage automatique du serveur !.\nRejoignez et amusez-vous !"
+        "ru"            "Автоматическая перезагрузка сервера!.\nПодключайтесь и веселитесь!"
     }
 
     "Restart Soon Chat"
@@ -140,6 +166,8 @@
         "en"            "{default}Automatic server restart at the end of the map.\n{1} {white}Don't forget to rejoin after the restart!"
         "zho"           "{default}伺服器將在地圖結束之後重啓。\n{1} {white}記得重啓之後要重連伺服器！"
         "chi"           "{default}伺服器将在地图结束之后重启。\n{1} {white}记得重启之后要重连伺服器！"
+        "fr"            "{default}Redémarrage automatique du serveur à la fin de la map.\n{1} {white}N'oubliez pas de vous reconnecter après le redémarrage !"
+        "ru"            "{default}Автоматическая перезагрузка сервера в конце карты.\n{1} {white}Не забудьте подключиться после перезагрузки!"
     }
 
     "Restart Soon Other"
@@ -147,5 +175,7 @@
         "en"            "Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!"
         "zho"           "伺服器將在地圖結束之後重啓。\n記得重啓之後要重連伺服器！"
         "chi"           "伺服器将在地图结束之后重启。\n记得重启之后要重连伺服器！"
+        "fr"            "Redémarrage automatique du serveur à la fin de la map.\nN'oubliez pas de vous reconnecter après le redémarrage !"
+        "ru"            "Автоматическая перезагрузка сервера в конце карты.\nНе забудьте подключиться после перезагрузки!"
     }
 }
