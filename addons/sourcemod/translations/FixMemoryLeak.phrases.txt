@@ -120,9 +120,9 @@
         // 1: Alert
         "#format"       "{1:t}"
 
-        "en"            "{white}Automatic server restart!.\n{2} {white}Rejoin and have fun!"
-        "zho"           "{white}伺服器即將重啓！\n{2} {white}記得重連伺服器，祝你玩的愉快!"
-        "chi"           "{white}伺服器即将重启！\n{2} {white}记得重连伺服器，祝你玩的愉快!"
+        "en"            "{white}Automatic server restart!.\n{1} {white}Rejoin and have fun!"
+        "zho"           "{white}伺服器即將重啓！\n{1} {white}記得重連伺服器，祝你玩的愉快!"
+        "chi"           "{white}伺服器即将重启！\n{1} {white}记得重连伺服器，祝你玩的愉快!"
     }
 
     "Restart Start Other"
@@ -137,9 +137,9 @@
         // 1: Alert
         "#format"       "{1:t}"
 
-        "en"            "{default}Automatic server restart at the end of the map.\n{2} {white}Don't forget to rejoin after the restart!"
-        "zho"           "{default}伺服器將在地圖結束之後重啓。\n{2} {white}記得重啓之後要重連伺服器！"
-        "chi"           "{default}伺服器将在地图结束之后重启。\n{2} {white}记得重启之后要重连伺服器！"
+        "en"            "{default}Automatic server restart at the end of the map.\n{1} {white}Don't forget to rejoin after the restart!"
+        "zho"           "{default}伺服器將在地圖結束之後重啓。\n{1} {white}記得重啓之後要重連伺服器！"
+        "chi"           "{default}伺服器将在地图结束之后重启。\n{1} {white}记得重启之后要重连伺服器！"
     }
 
     "Restart Soon Other"
