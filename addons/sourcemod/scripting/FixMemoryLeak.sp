@@ -8,21 +8,22 @@
 #tryinclude <mapchooser_extended>
 #define REQUIRE_PLUGIN
 
-#define CONFIG_PATH				"configs/fixmemoryleak.cfg"
-#define	CONFIG_KV_NAME			"server"
-#define	CONFIG_KV_INFO_NAME		"info"
-#define	CONFIG_KV_RESTART_NAME	"restart"
-#define PREFIX_CHAT				"{olive}[FixMemoryLeak]"
+#define CONFIG_PATH             "configs/fixmemoryleak.cfg"
+#define CONFIG_KV_NAME          "server"
+#define CONFIG_KV_INFO_NAME     "info"
+#define CONFIG_KV_RESTART_NAME  "restart"
 
 public Plugin myinfo =
 {
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.6"
+	version = "1.2.7",
+	url = "https://github.com/srcdslab"
 }
 
-enum struct ConfiguredRestart {
+enum struct ConfiguredRestart
+{
 	int iDay;
 	int iHour;
 	int iMinute;
@@ -48,25 +49,29 @@ int g_iMaxPlayers;
 
 public void OnPluginStart()
 {
+	// Load translations
+	LoadTranslations("FixMemoryLeak.phrases");
+
+	// Initalize cvars
 	g_cRestartMode = CreateConVar("sm_restart_mode", "2", "2 = Add configured days and sm_restart_delay, 1 = Only configured days, 0 = Only sm_restart_delay.", FCVAR_NOTIFY, true, 0.0, true, 2.0);
 	g_cRestartDelay = CreateConVar("sm_restart_delay", "1440", "How much time before a server restart in minutes.", FCVAR_NOTIFY, true, 1.0, true, 100000.0);
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
-	//Hook CVARs
+	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
 	HookConVarChange(g_cRestartDelay, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayers, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayersCountBots, OnCvarChanged);
 	HookConVarChange(g_cReloadFirstMap, OnCvarChanged);
-	
-	//Initialize values
-	g_iMode = GetConVarInt(g_cRestartMode);
-	g_iDelay = GetConVarInt(g_cRestartDelay);
-	g_iMaxPlayers = GetConVarInt(g_cMaxPlayers);
-	g_bCountBots = GetConVarBool(g_cMaxPlayersCountBots);
-	g_bReloadFirstMap = GetConVarBool(g_cReloadFirstMap);
+
+	// Initialize values
+	g_iMode = g_cRestartMode.IntValue;
+	g_iDelay = g_cRestartDelay.IntValue;
+	g_iMaxPlayers = g_cMaxPlayers.IntValue;
+	g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
+	g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 
 	AutoExecConfig(true);
 
@@ -93,15 +98,15 @@ public void OnPluginEnd()
 public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	if (convar == g_cRestartMode)
-		g_iMode = GetConVarInt(g_cRestartMode);
+		g_iMode = g_cRestartMode.IntValue;
 	else if (convar == g_cRestartDelay)
-		g_iDelay = GetConVarInt(g_cRestartDelay);
+		g_iDelay = g_cRestartDelay.IntValue;
 	else if (convar == g_cMaxPlayers)
-		g_iMaxPlayers = GetConVarInt(g_cMaxPlayers);
+		g_iMaxPlayers = g_cMaxPlayers.IntValue;
 	else if (convar == g_cMaxPlayersCountBots)
-		g_bCountBots = GetConVarBool(g_cMaxPlayersCountBots);
+		g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
 	else if (convar == g_cReloadFirstMap)
-		g_bReloadFirstMap = GetConVarBool(g_cReloadFirstMap);
+		g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 
 	// Convar get changed, we need to check if we need to update the next restart time
 	OnMapStart();
@@ -167,13 +172,12 @@ public Action Hook_OnMapChange(int args)
 
 public Action Hook_OnServerQuit(int args)
 {
-	if (!g_bRestart)
-	{
-		SetupNextRestartCurrentMap();
-		SoftServerRestart();
-		return Plugin_Handled;
-	}
-	return Plugin_Continue;
+	if (g_bRestart)
+		return Plugin_Continue;
+
+	SetupNextRestartCurrentMap();
+	SoftServerRestart();
+	return Plugin_Handled;
 }
 
 public Action Hook_OnServerRestart(int args)
@@ -188,7 +192,7 @@ public Action Command_RestartServer(int client, int argc)
 	char sNextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(sNextMap, sizeof(sNextMap)))
 	{
-		CPrintToChat(client, "%s {red}No nextmap have been set, please set one.", PREFIX_CHAT);
+		CPrintToChat(client, "%t %t", "Prefix", "No Nextmap Set");
 		return Plugin_Handled;
 	}
 
@@ -210,7 +214,7 @@ public Action Command_SvNextRestart(int client, int argc)
 			int iDays = iHours / 24;
 			iHours = iHours % 24;
 
-			CPrintToChat(client, "%s {default}Next restart will be in {green}%d days %d hours %d minutes", PREFIX_CHAT, iDays, iHours, iMinsUntilRestart % 60);
+			CReplyToCommand(client, "%t %t", "Prefix", "Next Restart", iDays, iHours, iMinsUntilRestart % 60);
 		}
 		case 1,2:
 		{
@@ -218,11 +222,11 @@ public Action Command_SvNextRestart(int client, int argc)
 			int RemaingTime = GetNextRestartTime() - GetTime();
 			FormatTime(buffer, sizeof(buffer), "%A %d %B %G @ %r", GetNextRestartTime());
 			FormatTime(rTime, sizeof(rTime), "%X", RemaingTime);
-			CPrintToChat(client, "%s {default}Next restart will be {green}%s", PREFIX_CHAT, buffer);
-			CPrintToChat(client, "%s {default}Remaing time until next restart : {green}%s", PREFIX_CHAT, rTime);
+
+			CReplyToCommand(client, "%t %t", "Prefix", "Next Restart Time", buffer);
+			CReplyToCommand(client, "%t %t", "Prefix", "Remaining Time", rTime);
 		}
 	}
-
 	return Plugin_Handled;
 }
 
@@ -239,11 +243,13 @@ public Action Command_DebugConfig(int client, int argc)
 			PrintConfiguredRestarts(client);
 			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
-		CPrintToChat(client, "%s {blue}Successfully reloaded the restart config.", PREFIX_CHAT);
+
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
 	}
 	else
-		CPrintToChat(client, "%s {red}There was an error reading the config file.", PREFIX_CHAT);
-
+	{
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Error");
+	}
 	g_bDebug = false;
 	return Plugin_Handled;
 }
@@ -254,11 +260,11 @@ public Action Command_AdminCancel(int client, int argc)
 
 	if (client == 0)
 		name = "The server";
-	else if (!GetClientName(client, name, sizeof(name))) 
+	else if (!GetClientName(client, name, sizeof(name)))
 		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
 
 	LogMessage("%s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
-	CPrintToChatAll("{green}[SM] {olive}%s {default}has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
+	CPrintToChatAll("%t %t", "Prefix", "Server Restart", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
 	g_bPostponeRestart = !g_bPostponeRestart;
 
 	return Plugin_Handled;
@@ -269,7 +275,7 @@ stock int GetClientCountEx(bool countBots)
 	int iRealClients = 0;
 	int iFakeClients = 0;
 
-	for(int player = 1; player <= MaxClients; player++)
+	for (int player = 1; player <= MaxClients; player++)
 	{
 		if (IsClientConnected(player))
 		{
@@ -284,45 +290,45 @@ stock int GetClientCountEx(bool countBots)
 
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
+	if (!IsRestartNeeded())
+		return Plugin_Continue;
+
 	int timeleft;
 	int playersCount = GetClientCountEx(g_bCountBots);
 
-	if (IsRestartNeeded())
+	GetMapTimeLeft(timeleft);
+
+	if (timeleft <= 0)
 	{
-		GetMapTimeLeft(timeleft);
-
-		if (timeleft <= 0)
+		if (g_iMaxPlayers > -1 && playersCount > g_iMaxPlayers)
 		{
-			if (g_iMaxPlayers > -1 && playersCount > g_iMaxPlayers)
-			{
-				g_bPostponeRestart = true;
-				LogMessage("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				CPrintToChatAll("{green}[SM] {default}Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				ServerCommand("sm_msay Too many players %d>%d, server restart postponed !", playersCount, g_iMaxPlayers);
-				ServerCommand("sm_tsay Server restart postponed !");
-				return Plugin_Continue;
-			}
-
-			if (!g_bPostponeRestart)
-			{
-				ServerCommand("sm_csay Automatic server restart. Rejoin and have fun !");
-				ServerCommand("sm_tsay red Automatic server restart.");
-				ServerCommand("sm_msay Automatic server restart.\nRejoin and have fun !");
-
-				PrintHintTextToAll("Automatic server restart. Rejoin and have fun !");
-				CPrintToChatAll("{fullred}[Server] {white}Automatic server restart.\n{fullred}[Server] {white}Rejoin and have fun !");
-			}
+			g_bPostponeRestart = true;
+			LogMessage("Server restart postponed! (Too many players: %d>%d)", playersCount, g_iMaxPlayers);
+			CPrintToChatAll("%t %t", "Prefix", "Restart Postponed Chat", playersCount, g_iMaxPlayers);
+			PrintHintTextToAll("%t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_msay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
+			ServerCommand("sm_csay %t", "Restart Postponed Other", playersCount, g_iMaxPlayers);
 			return Plugin_Continue;
 		}
 
 		if (!g_bPostponeRestart)
 		{
-			if (!IsVoteInProgress())
-				ServerCommand("sm_msay Automatic server restart at the end of the map.\nDon't forget to rejoin after the restart!");
+			ServerCommand("sm_csay %t", "Restart Start Other");
+			ServerCommand("sm_msay %t", "Restart Start Other");
 
-			PrintHintTextToAll("Automatic server restart at the end of the map.");
-			CPrintToChatAll("{fullred}[Server] {white}Automatic server restart at the end of the map.\n{fullred}[Server] {white}Don't forget to rejoin after the restart!");
+			PrintHintTextToAll("%t", "Restart Start Other");
+			CPrintToChatAll("%t %t", "Alert", "Restart Start Chat", "Alert");
 		}
+		return Plugin_Continue;
+	}
+
+	if (!g_bPostponeRestart)
+	{
+		if (!IsVoteInProgress())
+			ServerCommand("sm_msay %t", "Restart Soon Other");
+
+		PrintHintTextToAll("%t", "Restart Soon Other");
+		CPrintToChatAll("%t %t", "Alert", "Restart Soon Chat", "Alert");
 	}
 	return Plugin_Continue;
 }
@@ -493,7 +499,7 @@ stock int GetConfiguredClosestTime()
 		return iNextTime;
 
 	for (int i = 0; i < g_iConfiguredRestarts.Length; i++)
-	{		
+	{
 		ConfiguredRestart configuredRestart;
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 
@@ -614,7 +620,7 @@ stock void PrintConfiguredRestarts(int client)
 	for (int i = 0; i < g_iConfiguredRestarts.Length; i++)
 	{
 		ConfiguredRestart configuredRestart;
-		
+
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 
 		CPrintToChat(client, "{red}[Debug] {blue}Day : {default}T %d. {green}C %d {default}| {blue}Hour : {default}T %d. {green}C %d {default}| {blue}Minute : {default}T %d. {green}C %d", iCurrentDay, configuredRestart.iDay, iCurrentHour, configuredRestart.iHour, iCurrentMinute, configuredRestart.iMinute);
@@ -644,8 +650,8 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 	if (g_iConfiguredRestarts == null)
 		g_iConfiguredRestarts = new ArrayList(sizeof(ConfiguredRestart));
 
-	do    
-    {
+	do
+	{
 		char sSectionValue[10];
 		kv.GetString("day", sSectionValue, sizeof(sSectionValue), "");
 		if (strcmp(sSectionValue, "") == 0)
@@ -678,7 +684,7 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 
 		g_iConfiguredRestarts.PushArray(configuredRestart, sizeof(configuredRestart));
 
-    } while(kv.GotoNextKey());
+	} while(kv.GotoNextKey());
 
 	delete kv;
 
