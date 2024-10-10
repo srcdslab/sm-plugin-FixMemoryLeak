@@ -18,7 +18,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.7",
+	version = "1.2.8",
 	url = "https://github.com/srcdslab"
 }
 
@@ -140,9 +140,23 @@ public void OnMapStart()
 		g_bFirstMapAfterRestart = false;
 		// Set back the section value to 0 to prevent map change loop
 		SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
-		LogMessage("First map after restart, switching to the saved map (%s)", sSectionValue);
-		ForceChangeLevel(sSectionValue, "FixMemoryLeak - Map saved after server restart");
+
+		DataPack pack = new DataPack();
+		pack.WriteString(sSectionValue);
+		CreateTimer(6.0, Timer_ForceChangeLevel, pack, TIMER_FLAG_NO_MAPCHANGE);
 	}
+}
+
+public Action Timer_ForceChangeLevel(Handle timer, DataPack pack)
+{
+	char sNextMap[PLATFORM_MAX_PATH];
+	pack.Reset();
+	pack.ReadString(sNextMap, sizeof(sNextMap));
+	delete pack;
+
+	LogMessage("First map after restart, switching to the saved map (%s)", sNextMap);
+	ForceChangeLevel(sNextMap, "FixMemoryLeak - Map saved after server restart");
+	return Plugin_Handled;
 }
 
 #if defined _mapchooser_extended_included_
