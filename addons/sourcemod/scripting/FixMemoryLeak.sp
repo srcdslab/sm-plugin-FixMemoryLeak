@@ -67,7 +67,7 @@ public void OnPluginStart()
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "1", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "0", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
