@@ -12,13 +12,14 @@
 #define CONFIG_KV_NAME          "server"
 #define CONFIG_KV_INFO_NAME     "info"
 #define CONFIG_KV_RESTART_NAME  "restart"
+#define CONFIG_KV_COMMANDS_NAME "commands"
 
 public Plugin myinfo =
 {
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.2.8",
+	version = "1.3.0",
 	url = "https://github.com/srcdslab"
 }
 
@@ -31,21 +32,29 @@ enum struct ConfiguredRestart
 
 ConVar g_cRestartMode, g_cRestartDelay;
 ConVar g_cMaxPlayers, g_cMaxPlayersCountBots;
-ConVar g_cReloadFirstMap;
+ConVar g_cReloadFirstMap, g_cvEarlySvRestart;
 
 ArrayList g_iConfiguredRestarts = null;
 
+bool g_bLate = false;
 bool g_bDebug = false;
 bool g_bRestart = false;
 bool g_bPostponeRestart = false;
 bool g_bCountBots = false;
 bool g_bNextMapSet = false;
-bool g_bFirstMapAfterRestart = true;
 bool g_bReloadFirstMap = false;
+bool g_bEarlyRestart = false;
+static bool g_bCmdsAlreadyExecuted = false;
 
 int g_iMode;
 int g_iDelay;
 int g_iMaxPlayers;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	g_bLate = late;
+	return APLRes_Success;
+}
 
 public void OnPluginStart()
 {
@@ -58,6 +67,7 @@ public void OnPluginStart()
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "0", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
@@ -65,6 +75,7 @@ public void OnPluginStart()
 	HookConVarChange(g_cMaxPlayers, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayersCountBots, OnCvarChanged);
 	HookConVarChange(g_cReloadFirstMap, OnCvarChanged);
+	HookConVarChange(g_cvEarlySvRestart, OnCvarChanged);
 
 	// Initialize values
 	g_iMode = g_cRestartMode.IntValue;
@@ -72,6 +83,7 @@ public void OnPluginStart()
 	g_iMaxPlayers = g_cMaxPlayers.IntValue;
 	g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
 	g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
+	g_bEarlyRestart = g_cvEarlySvRestart.BoolValue;
 
 	AutoExecConfig(true);
 
@@ -79,12 +91,16 @@ public void OnPluginStart()
 	RegAdminCmd("sm_cancelrestart", Command_AdminCancel, ADMFLAG_RCON, "Cancel the soft restart server.");
 	RegAdminCmd("sm_svnextrestart", Command_SvNextRestart, ADMFLAG_RCON, "Print time until next restart.");
 	RegAdminCmd("sm_reloadrestartcfg", Command_DebugConfig, ADMFLAG_ROOT, "Reloads the configuration.");
+	RegAdminCmd("sm_forcerestartcmds", Command_ForceRestartCommands, ADMFLAG_ROOT, "Force execution of post-restart commands.");
 
 	RegServerCmd("changelevel", Hook_OnMapChange);
 	RegServerCmd("quit", Hook_OnServerQuit);
 	RegServerCmd("_restart", Hook_OnServerRestart);
 
 	HookEvent("round_end", OnRoundEnd, EventHookMode_Pre);
+
+	LoadCommandsAfterRestart(false);
+	ReloadMapAfterRestart();
 }
 
 public void OnPluginEnd()
@@ -107,6 +123,8 @@ public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] new
 		g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
 	else if (convar == g_cReloadFirstMap)
 		g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
+	else if (convar == g_cvEarlySvRestart)
+		g_bEarlyRestart = g_cvEarlySvRestart.BoolValue;
 
 	// Convar get changed, we need to check if we need to update the next restart time
 	OnMapStart();
@@ -131,13 +149,68 @@ public void OnMapStart()
 			}
 		}
 	}
+}
 
+stock bool LoadCommandsAfterRestart(bool bReload = false)
+{
+	if (!bReload && (g_bLate || g_bCmdsAlreadyExecuted || GetEngineTime() > 30.0))
+		return false;
+
+	// This function will search in the kv file the section "commands" and execute each command
+	// Example:
+	// "commands"
+	// {
+	// 	"cmd"		"sm exts load CSSFixes"
+	// 	"cmd"		"sm plugins reload adminmenu"
+	// }
+
+	KeyValues kv;
+	GetConfigKv(kv);
+	if (!kv.JumpToKey(CONFIG_KV_COMMANDS_NAME))
+	{
+		delete kv;
+		return false;
+	}
+
+	if (kv.GotoFirstSubKey(false))
+	{
+		g_bCmdsAlreadyExecuted = true;
+		char sCommand[PLATFORM_MAX_PATH];
+
+		do
+		{
+			kv.GetString(NULL_STRING, sCommand, sizeof(sCommand));
+			if (sCommand[0] != '\0')
+			{
+				LogMessage("Executing command: %s", sCommand);
+				ServerCommand(sCommand);
+			}
+		} while (kv.GotoNextKey(false));
+
+		kv.GoBack();
+	}
+	else
+	{
+		LogError("No commands found in the config file.");
+		delete kv;
+		return false;
+	}
+
+	delete kv;
+	return true;
+}
+	
+stock void ReloadMapAfterRestart()
+{
+	if (g_bLate)
+		return;
+
+	char sSectionValue[PLATFORM_MAX_PATH];
 	// Prevent issues related to a lot of cfg weirdness & precaching issues on initial server start, that are solved after the first map change
 	// Cvar: sm_restart_reload_firstmap
-	if (g_bFirstMapAfterRestart && g_bReloadFirstMap && GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sSectionValue) && strcmp(sSectionValue, "1") == 0
+	if (g_bReloadFirstMap && GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sSectionValue) && strcmp(sSectionValue, "1") == 0
 		&& GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sSectionValue) && strcmp(sSectionValue, "1") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sSectionValue))
 	{
-		g_bFirstMapAfterRestart = false;
 		// Set back the section value to 0 to prevent map change loop
 		SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
 
@@ -253,9 +326,9 @@ public Action Command_DebugConfig(int client, int argc)
 	{
 		if (g_bDebug)
 		{
-			CPrintToChat(client, "{red}[Debug] T = Current | {green}C = Configured.");
+			CReplyToCommand(client, "{red}[Debug] T = Current | {green}C = Configured.");
 			PrintConfiguredRestarts(client);
-			CPrintToChat(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
+			CReplyToCommand(client, "Timeleft until server restart ? Use {green}sm_svnextrestart");
 		}
 
 		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
@@ -281,6 +354,19 @@ public Action Command_AdminCancel(int client, int argc)
 	CPrintToChatAll("%t %t", "Prefix", "Server Restart", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
 	g_bPostponeRestart = !g_bPostponeRestart;
 
+	return Plugin_Handled;
+}
+
+public Action Command_ForceRestartCommands(int client, int args)
+{
+	g_bCmdsAlreadyExecuted = false;
+	bool success = LoadCommandsAfterRestart(true);
+	g_bCmdsAlreadyExecuted = true;
+
+	if (success)
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
+	else
+		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Error");
 	return Plugin_Handled;
 }
 
@@ -349,27 +435,47 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 
 stock bool IsRestartNeeded()
 {
+	bool bHasPlayers = false;
 	int currentTime = GetTime();
+	int iTime = g_iDelay;
+
+	if (g_bEarlyRestart)
+	{
+		for (int i = 1; i <= MaxClients; i++)
+		{
+			if (IsClientInGame(i) && !IsFakeClient(i))
+			{
+				bHasPlayers = true;
+				break;
+			}
+		}
+	}
 
 	switch (g_iMode)
 	{
 		case 0:
 		{
 			int iUptime = CalculateUptime();
-			if (iUptime >= g_iDelay)
-				return true;
+			if (g_bEarlyRestart && bHasPlayers)
+				iTime = iTime / 2;
+
+			return iUptime >= iTime;
 		}
 		case 1,2:
 		{
 			char sSectionValue[PLATFORM_MAX_PATH];
 			if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", sSectionValue))
 			{
-				int restartTime = StringToInt(sSectionValue);
-				if (currentTime >= restartTime)
-					return true;
+				iTime = StringToInt(sSectionValue);
+				if (g_bEarlyRestart && bHasPlayers)
+					iTime = iTime / 2;
+
+				return currentTime >= iTime;
 			}
 			else
+			{
 				SetupNextRestartNextMap("");
+			}
 		}
 	}
 
@@ -587,6 +693,12 @@ stock void GetConfigKv(KeyValues &kv, const char[] sConfigPath = CONFIG_PATH, co
 
 		WriteFileLine(hFile, "\"%s\"", CONFIG_KV_NAME);
 		WriteFileLine(hFile, "{");
+
+		WriteFileLine(hFile, "\t\"%s\"", CONFIG_KV_COMMANDS_NAME);
+		WriteFileLine(hFile, "\t{");
+		WriteFileLine(hFile, "\t\t\"cmd\"\t\"\"");
+		WriteFileLine(hFile, "\t\t\"cmd\"\t\"\"");
+		WriteFileLine(hFile, "\t}");
 
 		WriteFileLine(hFile, "\t\"%s\"", CONFIG_KV_INFO_NAME);
 		WriteFileLine(hFile, "\t{");
