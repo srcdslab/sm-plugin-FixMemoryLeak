@@ -69,6 +69,16 @@
         "ru"            "{default}Конфигурация перезагружена успешно."
     }
 
+    // Command_ForceRestartCommands
+    "Commands Reloaded Success"
+    {
+        "en"            "{default}Post-restart commands executed successfully."
+        "zho"           "{default}重啓後的命令執行成功。"
+        "chi"           "{default}重启后的命令执行成功。"
+        "fr"            "{default}Les commandes post-redémarrage ont été exécutées avec succès."
+        "ru"            "{default}Команды после перезагрузки выполнены успешно."
+    }
+
     "Reload Config Error"
     {
         "en"            "{default}There was an {red}error {default}reading the config file."
