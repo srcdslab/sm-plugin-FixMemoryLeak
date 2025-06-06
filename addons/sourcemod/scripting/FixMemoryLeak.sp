@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.3.0",
+	version = "1.3.1",
 	url = "https://github.com/srcdslab"
 }
 
@@ -67,7 +67,7 @@ public void OnPluginStart()
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "0", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "1", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
@@ -443,7 +443,7 @@ stock bool IsRestartNeeded()
 	{
 		for (int i = 1; i <= MaxClients; i++)
 		{
-			if (IsClientInGame(i) && !IsFakeClient(i))
+			if (IsClientConnected(i) && !IsFakeClient(i))
 			{
 				bHasPlayers = true;
 				break;
@@ -456,7 +456,7 @@ stock bool IsRestartNeeded()
 		case 0:
 		{
 			int iUptime = CalculateUptime();
-			if (g_bEarlyRestart && bHasPlayers)
+			if (g_bEarlyRestart && !bHasPlayers)
 				iTime = iTime / 2;
 
 			return iUptime >= iTime;
@@ -467,7 +467,7 @@ stock bool IsRestartNeeded()
 			if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", sSectionValue))
 			{
 				iTime = StringToInt(sSectionValue);
-				if (g_bEarlyRestart && bHasPlayers)
+				if (g_bEarlyRestart && !bHasPlayers)
 					iTime = iTime / 2;
 
 				return currentTime >= iTime;
