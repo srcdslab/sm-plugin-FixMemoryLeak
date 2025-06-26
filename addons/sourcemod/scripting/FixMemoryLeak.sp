@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.3.1",
+	version = "1.4.0",
 	url = "https://github.com/srcdslab"
 }
 
@@ -32,7 +32,7 @@ enum struct ConfiguredRestart
 
 ConVar g_cRestartMode, g_cRestartDelay;
 ConVar g_cMaxPlayers, g_cMaxPlayersCountBots;
-ConVar g_cReloadFirstMap, g_cvEarlySvRestart;
+ConVar g_cvEarlySvRestart;
 
 ArrayList g_iConfiguredRestarts = null;
 
@@ -42,7 +42,6 @@ bool g_bRestart = false;
 bool g_bPostponeRestart = false;
 bool g_bCountBots = false;
 bool g_bNextMapSet = false;
-bool g_bReloadFirstMap = false;
 bool g_bEarlyRestart = false;
 static bool g_bCmdsAlreadyExecuted = false;
 
@@ -66,7 +65,6 @@ public void OnPluginStart()
 	g_cRestartDelay = CreateConVar("sm_restart_delay", "1440", "How much time before a server restart in minutes.", FCVAR_NOTIFY, true, 1.0, true, 100000.0);
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "How many players should be connected to cancel restart (-1 = Disable)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Should we count bots for sm_restart_maxplayers (1 = Enabled, 0 = Disabled)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_cReloadFirstMap = CreateConVar("sm_restart_reload_firstmap", "0", "Reload the first map after a restart.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "1", "Early restart if no players are connected. (sm_restart_delay / 2)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	// Hook CVARs
@@ -74,7 +72,6 @@ public void OnPluginStart()
 	HookConVarChange(g_cRestartDelay, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayers, OnCvarChanged);
 	HookConVarChange(g_cMaxPlayersCountBots, OnCvarChanged);
-	HookConVarChange(g_cReloadFirstMap, OnCvarChanged);
 	HookConVarChange(g_cvEarlySvRestart, OnCvarChanged);
 
 	// Initialize values
@@ -82,7 +79,6 @@ public void OnPluginStart()
 	g_iDelay = g_cRestartDelay.IntValue;
 	g_iMaxPlayers = g_cMaxPlayers.IntValue;
 	g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
-	g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 	g_bEarlyRestart = g_cvEarlySvRestart.BoolValue;
 
 	AutoExecConfig(true);
@@ -100,7 +96,6 @@ public void OnPluginStart()
 	HookEvent("round_end", OnRoundEnd, EventHookMode_Pre);
 
 	LoadCommandsAfterRestart(false);
-	ReloadMapAfterRestart();
 }
 
 public void OnPluginEnd()
@@ -121,8 +116,6 @@ public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] new
 		g_iMaxPlayers = g_cMaxPlayers.IntValue;
 	else if (convar == g_cMaxPlayersCountBots)
 		g_bCountBots = g_cMaxPlayersCountBots.BoolValue;
-	else if (convar == g_cReloadFirstMap)
-		g_bReloadFirstMap = g_cReloadFirstMap.BoolValue;
 	else if (convar == g_cvEarlySvRestart)
 		g_bEarlyRestart = g_cvEarlySvRestart.BoolValue;
 
@@ -198,38 +191,6 @@ stock bool LoadCommandsAfterRestart(bool bReload = false)
 
 	delete kv;
 	return true;
-}
-	
-stock void ReloadMapAfterRestart()
-{
-	if (g_bLate)
-		return;
-
-	char sSectionValue[PLATFORM_MAX_PATH];
-	// Prevent issues related to a lot of cfg weirdness & precaching issues on initial server start, that are solved after the first map change
-	// Cvar: sm_restart_reload_firstmap
-	if (g_bReloadFirstMap && GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sSectionValue) && strcmp(sSectionValue, "1") == 0
-		&& GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sSectionValue) && strcmp(sSectionValue, "1") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sSectionValue))
-	{
-		// Set back the section value to 0 to prevent map change loop
-		SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
-
-		DataPack pack = new DataPack();
-		pack.WriteString(sSectionValue);
-		CreateTimer(6.0, Timer_ForceChangeLevel, pack, TIMER_FLAG_NO_MAPCHANGE);
-	}
-}
-
-public Action Timer_ForceChangeLevel(Handle timer, DataPack pack)
-{
-	char sNextMap[PLATFORM_MAX_PATH];
-	pack.Reset();
-	pack.ReadString(sNextMap, sizeof(sNextMap));
-	delete pack;
-
-	LogMessage("First map after restart, switching to the saved map (%s)", sNextMap);
-	ForceChangeLevel(sNextMap, "FixMemoryLeak - Map saved after server restart");
-	return Plugin_Handled;
 }
 
 #if defined _mapchooser_extended_included_
