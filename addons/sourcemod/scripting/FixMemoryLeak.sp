@@ -115,7 +115,7 @@ public void OnPluginStart()
 	g_cMaxPlayers = CreateConVar("sm_restart_maxplayers", "-1", "Cancel restart if more players than this (-1 = disabled, 0-64)", FCVAR_NOTIFY, true, -1.0, true, float(MAXPLAYERS));
 	g_cMaxPlayersCountBots = CreateConVar("sm_restart_maxplayers_count_bots", "0", "Include bots in player count for max players check", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cvEarlySvRestart = CreateConVar("sm_fixmemoryleak_early_restart", "1", "Reduce restart delay by half when no human players online (works in delay and hybrid modes)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_cEnableSecurity = CreateConVar("sm_fixmemoryleak_security", "1", "Enable security features (command validation, restart loop prevention)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cEnableSecurity = CreateConVar("sm_fixmemoryleak_security", "1", "Enable security features (restart loop prevention)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	// Hook CVARs
 	HookConVarChange(g_cRestartMode, OnCvarChanged);
@@ -254,32 +254,54 @@ public Action Hook_OnServerQuit(int args)
 {
 	if (g_State.isRestarting)
 	{
-		LogPluginMessage(LogLevel_Debug, "Server quit during restart process");
+		LogPluginMessage(LogLevel_Debug, "Server quit during restart process - allowing quit to proceed");
 		return Plugin_Continue;
 	}
 
-	LogPluginMessage(LogLevel_Info, "Server quit detected - scheduling restart");
+	LogPluginMessage(LogLevel_Info, "Server quit detected - saving restart state");
+
+	// Mark that we're restarting to prevent loops
+	g_State.isRestarting = true;
 
 	// Schedule restart for current map
 	char currentMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(currentMap, sizeof(currentMap));
 	RestartScheduler_ScheduleNextRestart(currentMap);
 
-	PerformServerRestart();
-	return Plugin_Handled;
+	// Save restart state and reconnect players
+	ReconnectPlayers();
+	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
+
+	// Let the original quit command proceed
+	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server quit to proceed");
+	return Plugin_Continue;
 }
 
 public Action Hook_OnServerRestart(int args)
 {
-	LogPluginMessage(LogLevel_Info, "Server restart command detected - scheduling restart");
+	if (g_State.isRestarting)
+	{
+		LogPluginMessage(LogLevel_Debug, "Server restart during restart process - allowing restart to proceed");
+		return Plugin_Continue;
+	}
+
+	LogPluginMessage(LogLevel_Info, "Server restart command detected - saving restart state");
+
+	// Mark that we're restarting to prevent loops
+	g_State.isRestarting = true;
 
 	// Schedule restart for current map
 	char currentMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(currentMap, sizeof(currentMap));
 	RestartScheduler_ScheduleNextRestart(currentMap);
 
-	PerformServerRestart();
-	return Plugin_Handled;
+	// Save restart state and reconnect players
+	ReconnectPlayers();
+	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
+
+	// Let the original restart command proceed
+	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server restart to proceed");
+	return Plugin_Continue;
 }
 
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
@@ -333,7 +355,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		ServerCommand("sm_csay %t", "Restart Start Other");
 		ServerCommand("sm_msay %t", "Restart Start Other");
 		PrintHintTextToAll("%t", "Restart Start Other");
-		CPrintToChatAll("%t %t", "Alert", "Restart Start Chat", "Alert");
+		CPrintToChatAll("%t %t", "Alert", "Restart Start Chat");
 	}
 
 	return Plugin_Continue;
@@ -417,8 +439,10 @@ public Action Command_SvNextRestart(int client, int argc)
 			CReplyToCommand(client, "%t %t", "Prefix", "Remaining Time", remainingTime);
 
 			// Show restart mode
-			char modeName[32];
-			g_Config.mode == RestartMode_Scheduled ? strcopy(modeName, sizeof(modeName), "Scheduled") : strcopy(modeName, sizeof(modeName), "Hybrid");
+			char modeName[32] = "Hybrid";
+			if (g_Config.mode == RestartMode_Scheduled)
+				strcopy(modeName, sizeof(modeName), "Scheduled");
+
 			CReplyToCommand(client, "%t %t", "Prefix", "Restart Mode Info", modeName);
 		}
 	}
@@ -623,6 +647,12 @@ void PerformServerRestart()
 		return;
 	}
 
+	if (g_State.isRestarting)
+	{
+		LogPluginMessage(LogLevel_Warning, "Restart already in progress, ignoring duplicate request");
+		return;
+	}
+
 	g_State.isRestarting = true;
 
 	LogPluginMessage(LogLevel_Info, "Initiating server restart process");
@@ -795,6 +825,10 @@ bool PluginConfig_Validate(PluginConfig config)
 
 bool Security_IsRestartSafe()
 {
+	// Skip security checks if disabled
+    if (!g_Config.enableSecurity)
+        return true;
+
 	// Check if we're already in a restart process
 	if (g_State.isRestarting)
 	{
@@ -1078,15 +1112,14 @@ int RestartScheduler_CalculateNextRestartTime()
 		}
 	}
 
-	// Ensure minimum interval between restarts (using a simple counter approach)
-	static int lastCalculatedTime = 0;
-	if (nextTime - lastCalculatedTime < MIN_RESTART_INTERVAL)
+	// Ensure minimum interval from NOW
+	int minimumNextTime = currentTime + MIN_RESTART_INTERVAL;
+	if (nextTime < minimumNextTime)
 	{
-		nextTime = lastCalculatedTime + MIN_RESTART_INTERVAL;
-		LogPluginMessage(LogLevel_Warning, "Restart time adjusted to respect minimum interval");
+		nextTime = minimumNextTime;
+		LogPluginMessage(LogLevel_Warning, "Restart time adjusted to respect minimum interval from current time");
 	}
 
-	lastCalculatedTime = nextTime;
 	LogPluginMessage(LogLevel_Debug, "Next restart calculated: %d (current: %d, delta: %d minutes)", nextTime, currentTime, (nextTime - currentTime) / 60);
 
 	return nextTime;
