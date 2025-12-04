@@ -179,7 +179,9 @@ public void OnMapStart()
 		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sectionValue) && strcmp(sectionValue, "0") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue))
 		{
 			SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "1");
-			CreateTimer(1.0, Timer_ChangeToNextMap, sectionValue, TIMER_FLAG_NO_MAPCHANGE);
+			DataPack dp = new DataPack();
+			dp.WriteString(sectionValue);
+			CreateDataTimer(1.0, Timer_ChangeToNextMap, dp, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 	}
@@ -566,13 +568,18 @@ public Action Command_ForceRestartCommands(int client, int args)
 // ==========================================
 // TIMERS & FRAMES
 // ==========================================
-public Action Timer_ChangeToNextMap(Handle timer, char[] nextMap)
+public Action Timer_ChangeToNextMap(Handle timer, DataPack dp)
 {
 	if (g_bLate)
 	{
 		LogPluginMessage(LogLevel_Debug, "Avoiding map change during late plugin load");
 		return Plugin_Stop;
 	}
+
+	char nextMap[PLATFORM_MAX_PATH];
+
+	dp.Reset();
+	dp.ReadString(nextMap, sizeof(nextMap));
 
 	LogPluginMessage(LogLevel_Info, "Changing to restart map: %s", nextMap);
 	ForceChangeLevel(nextMap, "FixMemoryLeak");
@@ -1078,10 +1085,9 @@ int RestartScheduler_CalculateNextRestartTime()
 		nextTime = lastCalculatedTime + MIN_RESTART_INTERVAL;
 		LogPluginMessage(LogLevel_Warning, "Restart time adjusted to respect minimum interval");
 	}
-	lastCalculatedTime = nextTime;
 
-	LogPluginMessage(LogLevel_Debug, "Next restart calculated: %d (current: %d, delta: %d minutes)",
-		nextTime, currentTime, (nextTime - currentTime) / 60);
+	lastCalculatedTime = nextTime;
+	LogPluginMessage(LogLevel_Debug, "Next restart calculated: %d (current: %d, delta: %d minutes)", nextTime, currentTime, (nextTime - currentTime) / 60);
 
 	return nextTime;
 }
@@ -1138,8 +1144,7 @@ bool RestartScheduler_ShouldPostponeRestart()
 	int playerCount = RestartScheduler_GetPlayerCount();
 	if (playerCount > g_Config.maxPlayers)
 	{
-		LogPluginMessage(LogLevel_Info, "Restart postponed: %d players online (max: %d)",
-			playerCount, g_Config.maxPlayers);
+		LogPluginMessage(LogLevel_Info, "Restart postponed: %d players online (max: %d)", playerCount, g_Config.maxPlayers);
 		return true;
 	}
 
@@ -1189,6 +1194,5 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 
 	g_State.nextMapSet = true;
 
-	LogPluginMessage(LogLevel_Info, "Next restart scheduled: %d on map '%s'",
-		g_State.nextRestartTime, g_State.nextMap);
+	LogPluginMessage(LogLevel_Info, "Next restart scheduled: %d on map '%s'", g_State.nextRestartTime, g_State.nextMap);
 }
