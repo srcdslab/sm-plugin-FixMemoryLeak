@@ -88,6 +88,189 @@
         "ru"            "{default}При чтении файла конфигурации произошла {red}ошибка{default}."
     }
 
+    // Command_SvNextRestart - Additional messages
+    "Restart Due Now"
+    {
+        "en"            "{default}Server restart is due {red}NOW{default}!"
+        "zho"           "{default}伺服器即將{red}立即{default}重啓！"
+        "chi"           "{default}伺服器即将{red}立即{default}重启！"
+        "fr"            "{default}Le redémarrage du serveur est prévu {red}MAINTENANT{default} !"
+        "ru"            "{default}Перезагрузка сервера запланирована {red}СЕЙЧАС{default}!"
+    }
+
+    "Next Restart Delay"
+    {
+        // 1: Days
+        // 2: Hours
+        // 3: Minutes
+        "#format"       "{1:i},{2:i},{3:i}"
+
+        "en"            "{default}Next restart in {green}{1} days {2} hours {3} minutes {default}(delay mode)"
+        "zho"           "{default}下次重啓在 {green}{1} 天 {2} 小時 {3} 分鐘 {default}（延遲模式）"
+        "chi"           "{default}下次重启在 {green}{1} 天 {2} 小时 {3} 分钟 {default}（延迟模式）"
+        "fr"            "{default}Prochain redémarrage dans {green}{1} jours {2} heures {3} minutes {default}(mode délai)"
+        "ru"            "{default}Следующая перезагрузка через {green}{1} дней {2} часов {3} минут {default}(режим задержки)"
+    }
+
+    "Restart Postponed Status"
+    {
+        "en"            "{default}Server restart is currently {yellow}POSTPONED{default}."
+        "zho"           "{default}伺服器重啓目前已被{yellow}延後{default}。"
+        "chi"           "{default}伺服器重启目前已被{yellow}延后{default}。"
+        "fr"            "{default}Le redémarrage du serveur est actuellement {yellow}REPORTÉ{default}."
+        "ru"            "{default}Перезагрузка сервера в настоящее время {yellow}ОТЛОЖЕНА{default}."
+    }
+
+    "Current Players"
+    {
+        // 1: Player count
+        "#format"       "{1:i}"
+
+        "en"            "{default}Current players online: {green}{1}"
+        "zho"           "{default}當前在線玩家：{green}{1}"
+        "chi"           "{default}当前在线玩家：{green}{1}"
+        "fr"            "{default}Joueurs actuellement en ligne : {green}{1}"
+        "ru"            "{default}Игроков онлайн: {green}{1}"
+    }
+
+    // Command_DebugConfig - Debug information
+    "Debug Config Header"
+    {
+        "en"            "{green}[DEBUG] {default}Configuration Details:"
+        "zho"           "{green}[DEBUG] {default}配置詳情："
+        "chi"           "{green}[DEBUG] {default}配置详情："
+        "fr"            "{green}[DEBUG] {default}Détails de configuration :"
+        "ru"            "{green}[DEBUG] {default}Детали конфигурации:"
+    }
+
+    "Debug Mode"
+    {
+        // 1: Mode number
+        // 2: Mode name
+        "#format"       "{1:i},{2:s}"
+
+        "en"            "{default}Mode: {green}{1} {default}({2})"
+        "zho"           "{default}模式：{green}{1} {default}（{2}）"
+        "chi"           "{default}模式：{green}{1} {default}（{2}）"
+        "fr"            "{default}Mode : {green}{1} {default}({2})"
+        "ru"            "{default}Режим: {green}{1} {default}({2})"
+    }
+
+    "Debug Delay"
+    {
+        // 1: Delay in minutes
+        "#format"       "{1:i}"
+
+        "en"            "{default}Delay: {green}{1} {default}minutes"
+        "zho"           "{default}延遲：{green}{1} {default}分鐘"
+        "chi"           "{default}延迟：{green}{1} {default}分钟"
+        "fr"            "{default}Délai : {green}{1} {default}minutes"
+        "ru"            "{default}Задержка: {green}{1} {default}минут"
+    }
+
+    "Debug Max Players"
+    {
+        // 1: Max players
+        "#format"       "{1:i}"
+
+        "en"            "{default}Max Players: {green}{1} {default}(-1 = disabled)"
+        "zho"           "{default}最大玩家數：{green}{1} {default}（-1 = 停用）"
+        "chi"           "{default}最大玩家数：{green}{1} {default}（-1 = 停用）"
+        "fr"            "{default}Joueurs max : {green}{1} {default}(-1 = désactivé)"
+        "ru"            "{default}Макс игроков: {green}{1} {default}(-1 = отключено)"
+    }
+
+    "Debug Count Bots"
+    {
+        // 1: Yes/No
+        "#format"       "{1:s}"
+
+        "en"            "{default}Count Bots: {green}{1}"
+        "zho"           "{default}計算機器人：{green}{1}"
+        "chi"           "{default}计算机器人：{green}{1}"
+        "fr"            "{default}Compter les bots : {green}{1}"
+        "ru"            "{default}Считать ботов: {green}{1}"
+    }
+
+    "Debug Early Restart"
+    {
+        // 1: Yes/No
+        "#format"       "{1:s}"
+
+        "en"            "{default}Early Restart: {green}{1}"
+        "zho"           "{default}提前重啓：{green}{1}"
+        "chi"           "{default}提前重启：{green}{1}"
+        "fr"            "{default}Redémarrage anticipé : {green}{1}"
+        "ru"            "{default}Ранний рестарт: {green}{1}"
+    }
+
+    "Debug Security"
+    {
+        // 1: Enabled/Disabled
+        "#format"       "{1:s}"
+
+        "en"            "{default}Security: {green}{1}"
+        "zho"           "{default}安全性：{green}{1}"
+        "chi"           "{default}安全性：{green}{1}"
+        "fr"            "{default}Sécurité : {green}{1}"
+        "ru"            "{default}Безопасность: {green}{1}"
+    }
+
+    "Debug Scheduled Restarts"
+    {
+        // 1: Count
+        "#format"       "{1:i}"
+
+        "en"            "{default}Scheduled restarts: {green}{1}"
+        "zho"           "{default}計劃重啓：{green}{1}"
+        "chi"           "{default}计划重启：{green}{1}"
+        "fr"            "{default}Redémarrages planifiés : {green}{1}"
+        "ru"            "{default}Запланированные перезагрузки: {green}{1}"
+    }
+
+    "Debug Timing Info"
+    {
+        "en"            "{default}Use {green}sm_svnextrestart {grey}for timing information"
+        "zho"           "{default}使用 {green}sm_svnextrestart {grey}獲取時間信息"
+        "chi"           "{default}使用 {green}sm_svnextrestart {grey}获取时间信息"
+        "fr"            "{default}Utilisez {green}sm_svnextrestart {grey}pour les informations de timing"
+        "ru"            "{default}Используйте {green}sm_svnextrestart {grey}для информации о времени"
+    }
+
+    // Command_AdminCancel - Additional messages
+    "Restart Postponed Info"
+    {
+        "en"            "{default}Restart is now {yellow}postponed{default}. Use this command again to resume."
+        "zho"           "{default}重啓現在已被{yellow}延後{default}。再次使用此命令恢復。"
+        "chi"           "{default}重启现在已被{yellow}延后{default}。再次使用此命令恢复。"
+        "fr"            "{default}Le redémarrage est maintenant {yellow}reporté{default}. Utilisez cette commande à nouveau pour reprendre."
+        "ru"            "{default}Перезагрузка теперь {yellow}отложена{default}. Используйте эту команду снова для возобновления."
+    }
+
+    "Restart Active Info"
+    {
+        // 1: Next restart timestamp
+        "#format"       "{1:i}"
+
+        "en"            "{default}Restart is now {green}active{default}. Next restart: {green}{1}"
+        "zho"           "{default}重啓現在{green}激活{default}。下次重啓：{green}{1}"
+        "chi"           "{default}重启现在{green}激活{default}。下次重启：{green}{1}"
+        "fr"            "{default}Le redémarrage est maintenant {green}actif{default}. Prochain redémarrage : {green}{1}"
+        "ru"            "{default}Перезагрузка теперь {green}активна{default}. Следующая перезагрузка: {green}{1}"
+    }
+
+    "Restart Mode Info"
+    {
+        // 1: Mode name
+        "#format"       "{1:s}"
+
+        "en"            "{default}Restart Mode: {green}{1}"
+        "zho"           "{default}重啓模式：{green}{1}"
+        "chi"           "{default}重启模式：{green}{1}"
+        "fr"            "{default}Mode de redémarrage : {green}{1}"
+        "ru"            "{default}Режим перезагрузки: {green}{1}"
+    }
+
     // Command_AdminCancel
     "Server Restart"
     {
