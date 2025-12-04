@@ -176,9 +176,7 @@ public void OnMapStart()
 	char sectionValue[PLATFORM_MAX_PATH];
 	if (GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sectionValue) && strcmp(sectionValue, "1") == 0)
 	{
-		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sectionValue) &&
-			strcmp(sectionValue, "0") == 0 &&
-			GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue))
+		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sectionValue) && strcmp(sectionValue, "0") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue))
 		{
 			SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "1");
 			CreateTimer(1.0, Timer_ChangeToNextMap, sectionValue, TIMER_FLAG_NO_MAPCHANGE);
