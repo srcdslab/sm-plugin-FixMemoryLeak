@@ -56,7 +56,7 @@ enum struct PluginConfig
 
 enum struct ScheduledRestart
 {
-	int dayOfWeek;     // 0-6 (Sunday = 0)
+	int dayOfWeek;     // Unified format: 1-7 (1=Monday, 2=Tuesday, ..., 7=Sunday)
 	int hour;          // 0-23
 	int minute;        // 0-59
 	int timestamp;     // Pre-calculated UNIX timestamp
@@ -516,18 +516,9 @@ public Action Command_DebugConfig(int client, int argc)
 					g_ScheduledRestarts.GetArray(i, restart, sizeof(restart));
 
 					char dayName[16];
-					switch (restart.dayOfWeek)
-					{
-						case 0: strcopy(dayName, sizeof(dayName), "Sunday");
-						case 1: strcopy(dayName, sizeof(dayName), "Monday");
-						case 2: strcopy(dayName, sizeof(dayName), "Tuesday");
-						case 3: strcopy(dayName, sizeof(dayName), "Wednesday");
-						case 4: strcopy(dayName, sizeof(dayName), "Thursday");
-						case 5: strcopy(dayName, sizeof(dayName), "Friday");
-						case 6: strcopy(dayName, sizeof(dayName), "Saturday");
-					}
+					strcopy(dayName, sizeof(dayName), GetDayName(restart.dayOfWeek));
 
-					CReplyToCommand(client, "%t  %s %02d:%02d", "Prefix", dayName, restart.hour, restart.minute);
+					CReplyToCommand(client, "%t  %s (day=%d) %02d:%02d", "Prefix", dayName, restart.dayOfWeek, restart.hour, restart.minute);
 				}
 			}
 
@@ -744,7 +735,7 @@ stock void ReconnectPlayers()
 stock bool LoadCommandsAfterRestart(bool bReload = false)
 {
 	// Prevent execution if conditions not met
-	if (!bReload && (g_State.commandsExecuted || GetEngineTime() > 30.0))
+	if (!bReload && g_State.commandsExecuted)
 		return false;
 
 	LogPluginMessage(LogLevel_Debug, "Loading post-restart commands (reload: %s)", bReload ? "true" : "false");
@@ -867,8 +858,8 @@ bool Security_IsRestartSafe()
 
 bool Security_ValidateScheduledRestart(ScheduledRestart restart)
 {
-	// Internal representation uses 0-6 (0=Sunday, 1=Monday, ..., 6=Saturday)
-	if (restart.dayOfWeek < 0 || restart.dayOfWeek > 6) return false;
+	// Unified format: 1-7 (1=Monday, 7=Sunday)
+	if (restart.dayOfWeek < 1 || restart.dayOfWeek > 7) return false;
 	if (restart.hour < 0 || restart.hour > 23) return false;
 	if (restart.minute < 0 || restart.minute > 59) return false;
 	return true;
@@ -953,20 +944,9 @@ bool ConfigManager_LoadScheduledRestarts()
 			continue;
 
 		ScheduledRestart restart;
-		int configDay = StringToInt(dayStr);
+		restart.dayOfWeek = StringToInt(dayStr);  // Keep 1-7 format directly
 		restart.hour = StringToInt(hourStr);
 		restart.minute = StringToInt(minuteStr);
-
-		// Convert config days (1-7, where 1=Monday, 7=Sunday) to FormatTime days (0-6, where 0=Sunday, 1=Monday)
-		if (configDay == 7)
-			restart.dayOfWeek = 0; // Sunday: 7 -> 0
-		else if (configDay >= 1 && configDay <= 6)
-			restart.dayOfWeek = configDay; // Monday(1) to Saturday(6) stays the same
-		else
-		{
-			LogPluginMessage(LogLevel_Warning, "Invalid day value in config: %d (expected 1-7, where 1=Monday, 7=Sunday)", configDay);
-			continue;
-		}
 
 		if (Security_ValidateScheduledRestart(restart))
 		{
@@ -974,13 +954,11 @@ bool ConfigManager_LoadScheduledRestarts()
 			g_ScheduledRestarts.PushArray(restart, sizeof(restart));
 			loadedCount++;
 
-			LogPluginMessage(LogLevel_Debug, "Loaded scheduled restart: Config day=%d -> Internal day=%d, %02d:%02d",
-				configDay, restart.dayOfWeek, restart.hour, restart.minute);
+			LogPluginMessage(LogLevel_Debug, "Loaded scheduled restart: Day=%d, %02d:%02d", restart.dayOfWeek, restart.hour, restart.minute);
 		}
 		else
 		{
-			LogPluginMessage(LogLevel_Warning, "Invalid scheduled restart configuration: Day=%s, Hour=%s, Minute=%s",
-				dayStr, hourStr, minuteStr);
+			LogPluginMessage(LogLevel_Warning, "Invalid scheduled restart configuration: Day=%s, Hour=%s, Minute=%s", dayStr, hourStr, minuteStr);
 		}
 
 	} while (kv.GotoNextKey());
@@ -1001,28 +979,40 @@ int ConfigManager_CalculateScheduledTimestamp(ScheduledRestart restart)
 	char timeParts[3][8];
 	ExplodeString(timeStr, " ", timeParts, sizeof(timeParts), sizeof(timeParts[]));
 
-	int currentDay = StringToInt(timeParts[0]);      // 0-6 (0=Sunday)
-	int currentHour = StringToInt(timeParts[1]);     // 0-23
-	int currentMinute = StringToInt(timeParts[2]);   // 0-59
+	int currentDayFormatTime = StringToInt(timeParts[0]);  // 0-6 (0=Sunday from FormatTime)
+	int currentHour = StringToInt(timeParts[1]);           // 0-23
+	int currentMinute = StringToInt(timeParts[2]);         // 0-59
 
-	// Calculate current time in minutes since start of week (Sunday 00:00)
-	int currentWeekMinutes = (currentDay * 24 * 60) + (currentHour * 60) + currentMinute;
+	// Convert FormatTime format (0=Sunday) to our unified format (1=Monday, 7=Sunday)
+	int currentDay;
+	if (currentDayFormatTime == 0)
+		currentDay = 7;  // Sunday: FormatTime 0 → Our format 7
+	else
+		currentDay = currentDayFormatTime;  // Monday-Saturday: 1-6 stays the same
 
-	// Calculate target time in minutes since start of week
-	int targetWeekMinutes = (restart.dayOfWeek * 24 * 60) + (restart.hour * 60) + restart.minute;
+	// Convert our format (1=Monday, 7=Sunday) to "days since Monday"
+	// Monday = 0, Tuesday = 1, ..., Sunday = 6
+	int currentDaysSinceMonday = (currentDay == 7) ? 6 : (currentDay - 1);
+	int targetDaysSinceMonday = (restart.dayOfWeek == 7) ? 6 : (restart.dayOfWeek - 1);
+
+	// Calculate current time in minutes since Monday 00:00
+	int currentWeekMinutes = (currentDaysSinceMonday * 24 * 60) + (currentHour * 60) + currentMinute;
+
+	// Calculate target time in minutes since Monday 00:00
+	int targetWeekMinutes = (targetDaysSinceMonday * 24 * 60) + (restart.hour * 60) + restart.minute;
 
 	// Calculate difference in minutes
 	int minutesDiff = targetWeekMinutes - currentWeekMinutes;
 
 	// If target is in the past this week, schedule for next week
-	if (minutesDiff <= 0)
+	if (minutesDiff < 0)
 		minutesDiff += 7 * 24 * 60; // Add one week in minutes
 
 	// Calculate target timestamp
 	int targetTime = currentTime + (minutesDiff * 60);
 
-	LogPluginMessage(LogLevel_Debug, "Scheduled restart calculation: Current=%d, Target day=%d %02d:%02d, Minutes diff=%d, Target timestamp=%d",
-		currentTime, restart.dayOfWeek, restart.hour, restart.minute, minutesDiff, targetTime);
+	LogPluginMessage(LogLevel_Debug, "Scheduled restart calculation: Current day=%d (%s), Target day=%d (%s) %02d:%02d, Minutes diff=%d, Target timestamp=%d",
+		currentDay, GetDayName(currentDay), restart.dayOfWeek, GetDayName(restart.dayOfWeek), restart.hour, restart.minute, minutesDiff, targetTime);
 
 	return targetTime;
 }
@@ -1078,7 +1068,14 @@ void ConfigManager_CreateDefaultConfig(const char[] filePath)
 	WriteFileLine(configFile, "\t}");
 	WriteFileLine(configFile, "");
 	WriteFileLine(configFile, "\t// Scheduled restart times");
-	WriteFileLine(configFile, "\t// Day format: 1-7 (1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday)");
+	WriteFileLine(configFile, "\t// CONFIG DAY FORMAT: 1-7 where:");
+	WriteFileLine(configFile, "\t//   1 = Monday");
+	WriteFileLine(configFile, "\t//   2 = Tuesday");
+	WriteFileLine(configFile, "\t//   3 = Wednesday");
+	WriteFileLine(configFile, "\t//   4 = Thursday");
+	WriteFileLine(configFile, "\t//   5 = Friday");
+	WriteFileLine(configFile, "\t//   6 = Saturday");
+	WriteFileLine(configFile, "\t//   7 = Sunday");
 	WriteFileLine(configFile, "\t// Hour format: 0-23 (24-hour format)");
 	WriteFileLine(configFile, "\t// Minute format: 0-59");
 	WriteFileLine(configFile, "\t// You can add multiple restart schedules by adding more numbered sections");
@@ -1147,7 +1144,7 @@ int RestartScheduler_CalculateNextRestartTime()
 	if (nextTime <= currentTime)
 	{
 		LogPluginMessage(LogLevel_Warning, "Restart is overdue (scheduled: %d, current: %d) - allowing immediate restart", nextTime, currentTime);
-		return currentTime; // Restart immédiatement
+		return currentTime; // Restart immediately
 	}
 
 	// Apply early restart logic if enabled (for delay-based or hybrid modes)
@@ -1157,12 +1154,8 @@ int RestartScheduler_CalculateNextRestartTime()
 		int remainingTime = nextTime - currentTime;
 		int earlyTime = currentTime + (remainingTime / 2);
 
-		// Only apply early restart if it would make the restart happen sooner
-		if (nextTime > earlyTime)
-		{
-			nextTime = earlyTime;
-			LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, remaining time reduced by half");
-		}
+		nextTime = earlyTime;
+		LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, restart time reduced by half (%d minutes)", remainingTime / 120);
 	}
 
 	// Ensure minimum interval from NOW (only for NEW restart calculations, not overdue ones)
@@ -1268,7 +1261,23 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 	g_State.nextRestartTime = RestartScheduler_CalculateNextRestartTime();
 
 	if (nextMap[0] != '\0')
+	{
 		strcopy(g_State.nextMap, sizeof(g_State.nextMap), nextMap);
+	}
+	else
+	{
+		char mapName[PLATFORM_MAX_PATH];
+		if (GetNextMap(mapName, sizeof(mapName)))
+		{
+			strcopy(g_State.nextMap, sizeof(g_State.nextMap), mapName);
+		}
+		else
+		{
+			GetCurrentMap(mapName, sizeof(mapName));
+			strcopy(g_State.nextMap, sizeof(g_State.nextMap), mapName);
+			LogPluginMessage(LogLevel_Warning, "No next map set, using current map: %s", mapName);
+		}
+	}
 
 	// Save to configuration
 	char timeStr[32];
@@ -1281,4 +1290,24 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 	g_State.nextMapSet = true;
 
 	LogPluginMessage(LogLevel_Info, "Next restart scheduled: %d on map '%s'", g_State.nextRestartTime, g_State.nextMap);
+}
+
+// ==========================================
+// HELPERS
+// ==========================================
+stock char[] GetDayName(int day)
+{
+	static char dayName[16];
+	switch (day)
+	{
+		case 1: strcopy(dayName, sizeof(dayName), "Monday");
+		case 2: strcopy(dayName, sizeof(dayName), "Tuesday");
+		case 3: strcopy(dayName, sizeof(dayName), "Wednesday");
+		case 4: strcopy(dayName, sizeof(dayName), "Thursday");
+		case 5: strcopy(dayName, sizeof(dayName), "Friday");
+		case 6: strcopy(dayName, sizeof(dayName), "Saturday");
+		case 7: strcopy(dayName, sizeof(dayName), "Sunday");
+		default: strcopy(dayName, sizeof(dayName), "Invalid");
+	}
+	return dayName;
 }
