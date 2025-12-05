@@ -14,6 +14,7 @@
 #define CONFIG_KV_RESTART_NAME  "restart"
 #define CONFIG_KV_COMMANDS_NAME "commands"
 
+#define MAX_POST_RESTART_EXEC   30.0    // typical map loading times and plugin initialization delays
 #define MIN_RESTART_INTERVAL    300     // 5 minutes minimum between restarts
 #define MAX_RESTART_DELAY       100000  // Maximum delay in minutes
 
@@ -84,7 +85,7 @@ bool g_bLate = false;
 ConVar g_cRestartMode, g_cRestartDelay;
 ConVar g_cMaxPlayers, g_cMaxPlayersCountBots;
 ConVar g_cvEarlySvRestart, g_cEnableSecurity;
-ConVar g_Cvar_HostIP, g_Cvar_HostPort;
+ConVar g_cHostIP, g_cHostPort;
 
 int g_iServerIP;
 int g_iServerPort;
@@ -127,11 +128,11 @@ public void OnPluginStart()
 
 	AutoExecConfig(true);
 
-	g_Cvar_HostIP   = FindConVar("hostip");
-	g_Cvar_HostPort = FindConVar("hostport");
+	g_cHostIP    = FindConVar("hostip");
+	g_cHostPort = FindConVar("hostport");
 
-	g_iServerIP   = g_Cvar_HostIP.IntValue;
-	g_iServerPort = g_Cvar_HostPort.IntValue;
+	g_iServerIP   = g_cHostIP .IntValue;
+	g_iServerPort = g_cHostPort.IntValue;
 
 	// Register commands
 	RegAdminCmd("sm_restartsv", Command_RestartServer, ADMFLAG_RCON, "Force a server restart to the next map");
@@ -226,7 +227,7 @@ public Action Hook_OnMapChange(int args)
 	{
 		LogPluginMessage(LogLevel_Info, "Initiating scheduled server restart");
 
-		// Schedule next restart for the next ma
+		// Schedule next restart for the next map
 		RestartScheduler_ScheduleNextRestart("");
 		PerformServerRestart();
 		return Plugin_Stop;
@@ -516,7 +517,7 @@ public Action Command_DebugConfig(int client, int argc)
 					g_ScheduledRestarts.GetArray(i, restart, sizeof(restart));
 
 					char dayName[16];
-					strcopy(dayName, sizeof(dayName), GetDayName(restart.dayOfWeek));
+					GetDayName(restart.dayOfWeek, dayName, sizeof(dayName));
 
 					CReplyToCommand(client, "%t  %s (day=%d) %02d:%02d", "Prefix", dayName, restart.dayOfWeek, restart.hour, restart.minute);
 				}
@@ -566,7 +567,7 @@ public Action Command_AdminCancel(int client, int argc)
 	return Plugin_Handled;
 }
 
-public Action Command_ForceRestartCommands(int client, int args)
+public Action Command_ForceRestartCommands(int client, int argc)
 {
 	char clientName[64];
 	if (client == 0)
@@ -614,12 +615,18 @@ public Action Timer_ChangeToNextMap(Handle timer, DataPack dp)
 	dp.Reset();
 	dp.ReadString(nextMap, sizeof(nextMap));
 
+	if (nextMap[0] == '\0')
+	{
+		LogPluginMessage(LogLevel_Warning, "No valid map name found in DataPack, aborting map change.");
+		return Plugin_Stop;
+	}
+
 	LogPluginMessage(LogLevel_Info, "Changing to restart map: %s", nextMap);
 	ForceChangeLevel(nextMap, "FixMemoryLeak");
 	return Plugin_Stop;
 }
 
-public void ExecuteServerQuit()
+void ExecuteServerQuit()
 {
 	LogPluginMessage(LogLevel_Info, "Executing server quit command");
 	ServerCommand("quit");
@@ -735,7 +742,7 @@ stock void ReconnectPlayers()
 stock bool LoadCommandsAfterRestart(bool bReload = false)
 {
 	// Prevent execution if conditions not met
-	if (!bReload && (g_bLate || g_State.commandsExecuted || GetEngineTime() > 30.0))
+	if (!bReload && (g_bLate || g_State.commandsExecuted || GetEngineTime() > MAX_POST_RESTART_EXEC))
 		return false;
 
 	LogPluginMessage(LogLevel_Debug, "Loading post-restart commands (reload: %s)", bReload ? "true" : "false");
@@ -747,6 +754,7 @@ stock bool LoadCommandsAfterRestart(bool bReload = false)
 	if (!kv.JumpToKey(CONFIG_KV_COMMANDS_NAME))
 	{
 		LogPluginMessage(LogLevel_Warning, "No commands section found in configuration");
+		g_State.commandsExecuted = true;
 		delete kv;
 		return false;
 	}
@@ -770,18 +778,16 @@ stock bool LoadCommandsAfterRestart(bool bReload = false)
 		kv.GoBack();
 
 		if (executedCount > 0)
-		{
-			g_State.commandsExecuted = true;
 			LogPluginMessage(LogLevel_Info, "Successfully executed %d post-restart commands", executedCount);
-		}
 		else
-		{
 			LogPluginMessage(LogLevel_Warning, "No valid commands found to execute");
-		}
+
+		g_State.commandsExecuted = true;
 	}
 	else
 	{
 		LogPluginMessage(LogLevel_Debug, "No commands configured for execution after restart");
+		g_State.commandsExecuted = true;
 		delete kv;
 		return false;
 	}
@@ -953,7 +959,7 @@ bool ConfigManager_LoadScheduledRestarts()
 
 		if (Security_ValidateScheduledRestart(restart))
 		{
-			restart.timestamp = ConfigManager_CalculateScheduledTimestamp(restart);
+			restart.timestamp = ConfigManager_CalculateNextOccurrenceTimestamp(restart);
 			g_ScheduledRestarts.PushArray(restart, sizeof(restart));
 			loadedCount++;
 
@@ -972,7 +978,7 @@ bool ConfigManager_LoadScheduledRestarts()
 	return (loadedCount > 0);
 }
 
-int ConfigManager_CalculateScheduledTimestamp(ScheduledRestart restart)
+int ConfigManager_CalculateNextOccurrenceTimestamp(ScheduledRestart restart)
 {
 	int currentTime = GetTime();
 
@@ -1014,8 +1020,13 @@ int ConfigManager_CalculateScheduledTimestamp(ScheduledRestart restart)
 	// Calculate target timestamp
 	int targetTime = currentTime + (minutesDiff * 60);
 
+	char currentDayName[16];
+	char targetDayName[16];
+	GetDayName(currentDay, currentDayName, sizeof(currentDayName));
+	GetDayName(restart.dayOfWeek, targetDayName, sizeof(targetDayName));
+
 	LogPluginMessage(LogLevel_Debug, "Scheduled restart calculation: Current day=%d (%s), Target day=%d (%s) %02d:%02d, Minutes diff=%d, Target timestamp=%d",
-		currentDay, GetDayName(currentDay), restart.dayOfWeek, GetDayName(restart.dayOfWeek), restart.hour, restart.minute, minutesDiff, targetTime);
+		currentDay, currentDayName, restart.dayOfWeek, targetDayName, restart.hour, restart.minute, minutesDiff, targetTime);
 
 	return targetTime;
 }
@@ -1146,8 +1157,8 @@ int RestartScheduler_CalculateNextRestartTime()
 	// Check if restart is already overdue
 	if (nextTime <= currentTime)
 	{
-		LogPluginMessage(LogLevel_Warning, "Restart is overdue (scheduled: %d, current: %d) - allowing immediate restart", nextTime, currentTime);
-		return currentTime; // Restart immediately
+		LogPluginMessage(LogLevel_Warning, "Restart is overdue (scheduled: %d, current: %d) - adjusting to respect minimum interval", nextTime, currentTime);
+		nextTime = currentTime + MIN_RESTART_INTERVAL;
 	}
 
 	// Apply early restart logic if enabled (for delay-based or hybrid modes)
@@ -1192,7 +1203,7 @@ int RestartScheduler_GetNextScheduledTime()
 		// Update timestamp if it's outdated
 		if (restart.timestamp <= currentTime)
 		{
-			restart.timestamp = ConfigManager_CalculateScheduledTimestamp(restart);
+			restart.timestamp = ConfigManager_CalculateNextOccurrenceTimestamp(restart);
 			g_ScheduledRestarts.SetArray(i, restart, sizeof(restart));
 			recalculatedCount++;
 		}
@@ -1302,19 +1313,17 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 // ==========================================
 // HELPERS
 // ==========================================
-stock char[] GetDayName(int day)
+stock void GetDayName(int day, char[] buffer, int maxlen)
 {
-	static char dayName[16];
 	switch (day)
 	{
-		case 1: strcopy(dayName, sizeof(dayName), "Monday");
-		case 2: strcopy(dayName, sizeof(dayName), "Tuesday");
-		case 3: strcopy(dayName, sizeof(dayName), "Wednesday");
-		case 4: strcopy(dayName, sizeof(dayName), "Thursday");
-		case 5: strcopy(dayName, sizeof(dayName), "Friday");
-		case 6: strcopy(dayName, sizeof(dayName), "Saturday");
-		case 7: strcopy(dayName, sizeof(dayName), "Sunday");
-		default: strcopy(dayName, sizeof(dayName), "Invalid");
+		case 1: strcopy(buffer, maxlen, "Monday");
+		case 2: strcopy(buffer, maxlen, "Tuesday");
+		case 3: strcopy(buffer, maxlen, "Wednesday");
+		case 4: strcopy(buffer, maxlen, "Thursday");
+		case 5: strcopy(buffer, maxlen, "Friday");
+		case 6: strcopy(buffer, maxlen, "Saturday");
+		case 7: strcopy(buffer, maxlen, "Sunday");
+		default: strcopy(buffer, maxlen, "Invalid");
 	}
-	return dayName;
 }
