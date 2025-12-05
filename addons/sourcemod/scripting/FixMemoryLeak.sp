@@ -735,7 +735,7 @@ stock void ReconnectPlayers()
 stock bool LoadCommandsAfterRestart(bool bReload = false)
 {
 	// Prevent execution if conditions not met
-	if (!bReload && g_State.commandsExecuted)
+	if (!bReload && (g_bLate || g_State.commandsExecuted || GetEngineTime() > 30.0))
 		return false;
 
 	LogPluginMessage(LogLevel_Debug, "Loading post-restart commands (reload: %s)", bReload ? "true" : "false");
