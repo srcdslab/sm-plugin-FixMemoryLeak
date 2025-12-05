@@ -252,10 +252,19 @@ public Action Hook_OnMapChange(int args)
 
 public Action Hook_OnServerQuit(int args)
 {
+	// Security check: prevent restart loops
 	if (g_State.isRestarting)
 	{
-		LogPluginMessage(LogLevel_Debug, "Server quit during restart process - allowing quit to proceed");
-		return Plugin_Continue;
+		if (g_Config.enableSecurity)
+		{
+			LogPluginMessage(LogLevel_Error, "Server quit blocked: Already in restart process (potential restart loop detected)");
+			return Plugin_Stop;
+		}
+		else
+		{
+			LogPluginMessage(LogLevel_Warning, "Server quit during restart process - allowing quit to proceed (security disabled)");
+			return Plugin_Continue;
+		}
 	}
 
 	LogPluginMessage(LogLevel_Info, "Server quit detected - saving restart state");
@@ -279,10 +288,19 @@ public Action Hook_OnServerQuit(int args)
 
 public Action Hook_OnServerRestart(int args)
 {
+	// Security check: prevent restart loops
 	if (g_State.isRestarting)
 	{
-		LogPluginMessage(LogLevel_Debug, "Server restart during restart process - allowing restart to proceed");
-		return Plugin_Continue;
+		if (g_Config.enableSecurity)
+		{
+			LogPluginMessage(LogLevel_Error, "Server restart blocked: Already in restart process (potential restart loop detected)");
+			return Plugin_Stop;
+		}
+		else
+		{
+			LogPluginMessage(LogLevel_Warning, "Server restart during restart process - allowing restart to proceed (security disabled)");
+			return Plugin_Continue;
+		}
 	}
 
 	LogPluginMessage(LogLevel_Info, "Server restart command detected - saving restart state");
@@ -537,10 +555,10 @@ public Action Command_AdminCancel(int client, int argc)
 	// Toggle postponement state
 	g_State.isPostponed = !g_State.isPostponed;
 
-	LogPluginMessage(LogLevel_Info, "%s has %s the server restart", clientName, g_State.isPostponed ? "postponed" : "unpostponed");
+	LogPluginMessage(LogLevel_Info, "%s has %s the server restart", clientName, g_State.isPostponed ? "postponed" : "resumed");
 
 	char action[32];
-	strcopy(action, sizeof(action), g_State.isPostponed ? "Postponed" : "Unpostponed");
+	strcopy(action, sizeof(action), g_State.isPostponed ? "Postponed" : "Resumed");
 
 	CPrintToChatAll("%t %t", "Prefix", "Server Restart", clientName, action);
 
@@ -715,6 +733,7 @@ stock void ReconnectPlayers()
 	FormatEx(sAddress, sizeof(sAddress), "%d.%d.%d.%d:%d", g_iServerIP >>> 24 & 255, g_iServerIP >>> 16 & 255, g_iServerIP >>> 8 & 255, g_iServerIP & 255, g_iServerPort);
 	LogPluginMessage(LogLevel_Info, "Reconnecting players to address: %s", sAddress);
 
+	// bug: Retry command does not work #25 - https://github.com/srcdslab/sm-plugin-FixMemoryLeak/issues/25
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientConnected(i) && !IsFakeClient(i))
@@ -848,6 +867,7 @@ bool Security_IsRestartSafe()
 
 bool Security_ValidateScheduledRestart(ScheduledRestart restart)
 {
+	// Internal representation uses 0-6 (0=Sunday, 1=Monday, ..., 6=Saturday)
 	if (restart.dayOfWeek < 0 || restart.dayOfWeek > 6) return false;
 	if (restart.hour < 0 || restart.hour > 23) return false;
 	if (restart.minute < 0 || restart.minute > 59) return false;
@@ -933,19 +953,29 @@ bool ConfigManager_LoadScheduledRestarts()
 			continue;
 
 		ScheduledRestart restart;
-		restart.dayOfWeek = StringToInt(dayStr);
+		int configDay = StringToInt(dayStr);
 		restart.hour = StringToInt(hourStr);
 		restart.minute = StringToInt(minuteStr);
 
-		// Convert config days (1-7, where 7=Sunday) to FormatTime days (0-6, where 0=Sunday)
-		if (restart.dayOfWeek == 7)
-			restart.dayOfWeek = 0;
+		// Convert config days (1-7, where 1=Monday, 7=Sunday) to FormatTime days (0-6, where 0=Sunday, 1=Monday)
+		if (configDay == 7)
+			restart.dayOfWeek = 0; // Sunday: 7 -> 0
+		else if (configDay >= 1 && configDay <= 6)
+			restart.dayOfWeek = configDay; // Monday(1) to Saturday(6) stays the same
+		else
+		{
+			LogPluginMessage(LogLevel_Warning, "Invalid day value in config: %d (expected 1-7, where 1=Monday, 7=Sunday)", configDay);
+			continue;
+		}
 
 		if (Security_ValidateScheduledRestart(restart))
 		{
 			restart.timestamp = ConfigManager_CalculateScheduledTimestamp(restart);
 			g_ScheduledRestarts.PushArray(restart, sizeof(restart));
 			loadedCount++;
+
+			LogPluginMessage(LogLevel_Debug, "Loaded scheduled restart: Config day=%d -> Internal day=%d, %02d:%02d",
+				configDay, restart.dayOfWeek, restart.hour, restart.minute);
 		}
 		else
 		{
@@ -965,39 +995,34 @@ int ConfigManager_CalculateScheduledTimestamp(ScheduledRestart restart)
 {
 	int currentTime = GetTime();
 
-	// Get current time components
+	// Get current time components using FormatTime
 	char timeStr[64];
 	FormatTime(timeStr, sizeof(timeStr), "%w %H %M", currentTime);
 	char timeParts[3][8];
 	ExplodeString(timeStr, " ", timeParts, sizeof(timeParts), sizeof(timeParts[]));
 
-	int currentDay = StringToInt(timeParts[0]);
-	int currentHour = StringToInt(timeParts[1]);
-	int currentMinute = StringToInt(timeParts[2]);
+	int currentDay = StringToInt(timeParts[0]);      // 0-6 (0=Sunday)
+	int currentHour = StringToInt(timeParts[1]);     // 0-23
+	int currentMinute = StringToInt(timeParts[2]);   // 0-59
 
-	// Calculate next occurrence
-	int targetTime = currentTime;
+	// Calculate current time in minutes since start of week (Sunday 00:00)
+	int currentWeekMinutes = (currentDay * 24 * 60) + (currentHour * 60) + currentMinute;
 
-	// Adjust to target day
-	int dayDiff = restart.dayOfWeek - currentDay;
-	if (dayDiff < 0) dayDiff += 7;
-	if (dayDiff == 0)
-	{
-		// Same day - check if time has passed
-		if (restart.hour < currentHour || (restart.hour == currentHour && restart.minute <= currentMinute))
-			dayDiff = 7; // Next week
-	}
+	// Calculate target time in minutes since start of week
+	int targetWeekMinutes = (restart.dayOfWeek * 24 * 60) + (restart.hour * 60) + restart.minute;
 
-	targetTime += dayDiff * 86400; // Add days in seconds
+	// Calculate difference in minutes
+	int minutesDiff = targetWeekMinutes - currentWeekMinutes;
 
-	// Set target time within the day
-	FormatTime(timeStr, sizeof(timeStr), "%H %M", targetTime);
-	ExplodeString(timeStr, " ", timeParts, sizeof(timeParts), sizeof(timeParts[]));
-	int targetHour = StringToInt(timeParts[0]);
-	int targetMinute = StringToInt(timeParts[1]);
+	// If target is in the past this week, schedule for next week
+	if (minutesDiff <= 0)
+		minutesDiff += 7 * 24 * 60; // Add one week in minutes
 
-	targetTime -= targetHour * 3600 + targetMinute * 60; // Remove current time
-	targetTime += restart.hour * 3600 + restart.minute * 60; // Add target time
+	// Calculate target timestamp
+	int targetTime = currentTime + (minutesDiff * 60);
+
+	LogPluginMessage(LogLevel_Debug, "Scheduled restart calculation: Current=%d, Target day=%d %02d:%02d, Minutes diff=%d, Target timestamp=%d",
+		currentTime, restart.dayOfWeek, restart.hour, restart.minute, minutesDiff, targetTime);
 
 	return targetTime;
 }
@@ -1034,13 +1059,16 @@ void ConfigManager_CreateDefaultConfig(const char[] filePath)
 		return;
 	}
 
-	// Write default configuration
+	// Write default configuration with detailed comments
 	WriteFileLine(configFile, "\"%s\"", CONFIG_KV_NAME);
 	WriteFileLine(configFile, "{");
+	WriteFileLine(configFile, "\t// Commands to execute after server restart");
 	WriteFileLine(configFile, "\t\"%s\"", CONFIG_KV_COMMANDS_NAME);
 	WriteFileLine(configFile, "\t{");
 	WriteFileLine(configFile, "\t\t\"cmd\"\t\"\"");
 	WriteFileLine(configFile, "\t}");
+	WriteFileLine(configFile, "");
+	WriteFileLine(configFile, "\t// Internal plugin state - do not edit manually");
 	WriteFileLine(configFile, "\t\"%s\"", CONFIG_KV_INFO_NAME);
 	WriteFileLine(configFile, "\t{");
 	WriteFileLine(configFile, "\t\t\"nextrestart\"\t\"\"");
@@ -1048,19 +1076,40 @@ void ConfigManager_CreateDefaultConfig(const char[] filePath)
 	WriteFileLine(configFile, "\t\t\"restarted\"\t\"\"");
 	WriteFileLine(configFile, "\t\t\"changed\"\t\"\"");
 	WriteFileLine(configFile, "\t}");
+	WriteFileLine(configFile, "");
+	WriteFileLine(configFile, "\t// Scheduled restart times");
+	WriteFileLine(configFile, "\t// Day format: 1-7 (1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday)");
+	WriteFileLine(configFile, "\t// Hour format: 0-23 (24-hour format)");
+	WriteFileLine(configFile, "\t// Minute format: 0-59");
+	WriteFileLine(configFile, "\t// You can add multiple restart schedules by adding more numbered sections");
 	WriteFileLine(configFile, "\t\"%s\"", CONFIG_KV_RESTART_NAME);
 	WriteFileLine(configFile, "\t{");
+	WriteFileLine(configFile, "\t\t// Example: Monday at 06:00 AM");
 	WriteFileLine(configFile, "\t\t\"0\"");
 	WriteFileLine(configFile, "\t\t{");
 	WriteFileLine(configFile, "\t\t\t\"day\"\t\t\"1\"");
 	WriteFileLine(configFile, "\t\t\t\"hour\"\t\t\"6\"");
 	WriteFileLine(configFile, "\t\t\t\"minute\"\t\"0\"");
 	WriteFileLine(configFile, "\t\t}");
+	WriteFileLine(configFile, "\t\t// Example: Friday at 06:30 PM");
+	WriteFileLine(configFile, "\t\t\"1\"");
+	WriteFileLine(configFile, "\t\t{");
+	WriteFileLine(configFile, "\t\t\t\"day\"\t\t\"5\"");
+	WriteFileLine(configFile, "\t\t\t\"hour\"\t\t\"18\"");
+	WriteFileLine(configFile, "\t\t\t\"minute\"\t\"30\"");
+	WriteFileLine(configFile, "\t\t}");
+	WriteFileLine(configFile, "\t\t// Example: Sunday at 03:00 AM");
+	WriteFileLine(configFile, "\t\t\"2\"");
+	WriteFileLine(configFile, "\t\t{");
+	WriteFileLine(configFile, "\t\t\t\"day\"\t\t\"7\"");
+	WriteFileLine(configFile, "\t\t\t\"hour\"\t\t\"3\"");
+	WriteFileLine(configFile, "\t\t\t\"minute\"\t\"0\"");
+	WriteFileLine(configFile, "\t\t}");
 	WriteFileLine(configFile, "\t}");
 	WriteFileLine(configFile, "}");
 
 	delete configFile;
-	LogPluginMessage(LogLevel_Info, "Default configuration file created");
+	LogPluginMessage(LogLevel_Info, "Default configuration file created with documentation");
 }
 
 // ==========================================
@@ -1094,6 +1143,13 @@ int RestartScheduler_CalculateNextRestartTime()
 		}
 	}
 
+	// Check if restart is already overdue
+	if (nextTime <= currentTime)
+	{
+		LogPluginMessage(LogLevel_Warning, "Restart is overdue (scheduled: %d, current: %d) - allowing immediate restart", nextTime, currentTime);
+		return currentTime; // Restart immédiatement
+	}
+
 	// Apply early restart logic if enabled (for delay-based or hybrid modes)
 	if (g_Config.earlyRestart && (g_Config.mode == RestartMode_Delay || g_Config.mode == RestartMode_Hybrid) && RestartScheduler_ShouldEarlyRestart())
 	{
@@ -1109,7 +1165,7 @@ int RestartScheduler_CalculateNextRestartTime()
 		}
 	}
 
-	// Ensure minimum interval from NOW (applies to all modes and early restart)
+	// Ensure minimum interval from NOW (only for NEW restart calculations, not overdue ones)
 	int minimumNextTime = currentTime + MIN_RESTART_INTERVAL;
 	if (nextTime < minimumNextTime)
 	{
