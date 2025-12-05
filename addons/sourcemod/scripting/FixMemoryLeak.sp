@@ -56,7 +56,7 @@ enum struct PluginConfig
 
 enum struct ScheduledRestart
 {
-	int dayOfWeek;     // Unified format: 1-7 (1=Monday, 2=Tuesday, ..., 7=Sunday)
+	int dayOfWeek;     // 1-7 where 1=Monday, 2=Tuesday, ..., 6=Saturday, 7=Sunday (ISO 8601)
 	int hour;          // 0-23
 	int minute;        // 0-59
 	int timestamp;     // Pre-calculated UNIX timestamp
@@ -182,7 +182,6 @@ public void OnMapStart()
 			DataPack dp;
 			CreateDataTimer(1.0, Timer_ChangeToNextMap, dp, TIMER_FLAG_NO_MAPCHANGE);
 			dp.WriteString(sectionValue);
-			return;
 		}
 	}
 
@@ -227,17 +226,8 @@ public Action Hook_OnMapChange(int args)
 	{
 		LogPluginMessage(LogLevel_Info, "Initiating scheduled server restart");
 
-		// Schedule next restart for the next map
-		char nextMap[PLATFORM_MAX_PATH];
-		if (GetNextMap(nextMap, sizeof(nextMap)))
-		{
-			RestartScheduler_ScheduleNextRestart(nextMap);
-		}
-		else
-		{
-			RestartScheduler_ScheduleNextRestart("");
-		}
-
+		// Schedule next restart for the next ma
+		RestartScheduler_ScheduleNextRestart("");
 		PerformServerRestart();
 		return Plugin_Stop;
 	}
@@ -405,11 +395,21 @@ public Action Command_RestartServer(int client, int argc)
 		return Plugin_Handled;
 	}
 
-	// Schedule immediate restart
+	// Set immediate restart time
 	g_State.nextRestartTime = GetTime();
-	RestartScheduler_ScheduleNextRestart(nextMap);
 
-	// Force the restart
+	// Save the next map without recalculating the restart time
+	strcopy(g_State.nextMap, sizeof(g_State.nextMap), nextMap);
+
+	// Save to configuration manually
+	char timeStr[32];
+	IntToString(g_State.nextRestartTime, timeStr, sizeof(timeStr));
+	SetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", timeStr);
+	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", g_State.nextMap);
+	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "0");
+	SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
+
+	// Force the restart immediately
 	ForceChangeLevel(nextMap, "FixMemoryLeak");
 
 	LogPluginMessage(LogLevel_Info, "Manual server restart initiated to map: %s", nextMap);
@@ -824,6 +824,9 @@ void LogPluginMessage(LogLevel level, const char[] message, any ...)
 // ==========================================
 bool PluginConfig_Validate(PluginConfig config)
 {
+	if (view_as<int>(config.mode) < 0 || view_as<int>(config.mode) > 2)
+		return false;
+
 	if (config.delayMinutes < 1 || config.delayMinutes > MAX_RESTART_DELAY)
 		return false;
 
@@ -1155,7 +1158,7 @@ int RestartScheduler_CalculateNextRestartTime()
 		int earlyTime = currentTime + (remainingTime / 2);
 
 		nextTime = earlyTime;
-		LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, restart time reduced by half (%d minutes)", remainingTime / 120);
+		LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, restart time reduced by half (%d minutes)", (remainingTime / 60) / 2);
 	}
 
 	// Ensure minimum interval from NOW (only for NEW restart calculations, not overdue ones)
@@ -1178,7 +1181,9 @@ int RestartScheduler_GetNextScheduledTime()
 
 	int currentTime = GetTime();
 	int nextTime = 0;
+	int recalculatedCount = 0;
 
+	// Single pass: recalculate outdated timestamps and find minimum
 	for (int i = 0; i < g_ScheduledRestarts.Length; i++)
 	{
 		ScheduledRestart restart;
@@ -1189,10 +1194,17 @@ int RestartScheduler_GetNextScheduledTime()
 		{
 			restart.timestamp = ConfigManager_CalculateScheduledTimestamp(restart);
 			g_ScheduledRestarts.SetArray(i, restart, sizeof(restart));
+			recalculatedCount++;
 		}
 
+		// Find the earliest restart time
 		if (nextTime == 0 || restart.timestamp < nextTime)
 			nextTime = restart.timestamp;
+	}
+
+	if (recalculatedCount > 0)
+	{
+		LogPluginMessage(LogLevel_Debug, "Recalculated %d outdated scheduled restart timestamp(s)", recalculatedCount);
 	}
 
 	return nextTime;
@@ -1200,19 +1212,14 @@ int RestartScheduler_GetNextScheduledTime()
 
 bool RestartScheduler_ShouldEarlyRestart()
 {
-	// Count human players
-	int humanPlayers = 0;
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientConnected(i) && !IsFakeClient(i))
-		{
-			humanPlayers++;
-			break;
-		}
+			return false;
 	}
 
 	// Only allow early restart if no human players are connected
-	return (humanPlayers == 0);
+	return true;
 }
 
 bool RestartScheduler_ShouldPostponeRestart()
