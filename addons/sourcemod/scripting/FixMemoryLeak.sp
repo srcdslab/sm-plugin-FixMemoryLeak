@@ -179,9 +179,9 @@ public void OnMapStart()
 		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sectionValue) && strcmp(sectionValue, "0") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue))
 		{
 			SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "1");
-			DataPack dp = new DataPack();
-			dp.WriteString(sectionValue);
+			DataPack dp;
 			CreateDataTimer(1.0, Timer_ChangeToNextMap, dp, TIMER_FLAG_NO_MAPCHANGE);
+			dp.WriteString(sectionValue);
 			return;
 		}
 	}
