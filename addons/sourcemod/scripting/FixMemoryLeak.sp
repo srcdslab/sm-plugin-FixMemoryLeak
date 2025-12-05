@@ -100,7 +100,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_State.nextMapSet = false;
 	g_State.commandsExecuted = false;
 	g_State.nextRestartTime = 0;
-	g_State.nextMap = "";
+	g_State.nextMap[0] = '\0';
 	return APLRes_Success;
 }
 
@@ -382,7 +382,7 @@ public Action Command_RestartServer(int client, int argc)
 	char nextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(nextMap, sizeof(nextMap)))
 	{
-		CPrintToChat(client, "%t %t", "Prefix", "No Nextmap Set");
+		CReplyToCommand(client, "%t %t", "Prefix", "No Nextmap Set");
 		LogPluginMessage(LogLevel_Warning, "Cannot restart server: no next map set");
 		return Plugin_Handled;
 	}
@@ -711,14 +711,14 @@ stock bool GetSectionValue(const char[] sConfigName, const char[] sSectionName, 
 
 stock void ReconnectPlayers()
 {
-	static char sAdress[128];
-	FormatEx(sAdress, sizeof(sAdress), "%d.%d.%d.%d:%d", g_iServerIP >>> 24 & 255, g_iServerIP >>> 16 & 255, g_iServerIP >>> 8 & 255, g_iServerIP & 255, g_iServerPort);
-	LogPluginMessage(LogLevel_Info, "Reconnecting players to address: %s", sAdress);
+	static char sAddress[128];
+	FormatEx(sAddress, sizeof(sAddress), "%d.%d.%d.%d:%d", g_iServerIP >>> 24 & 255, g_iServerIP >>> 16 & 255, g_iServerIP >>> 8 & 255, g_iServerIP & 255, g_iServerPort);
+	LogPluginMessage(LogLevel_Info, "Reconnecting players to address: %s", sAddress);
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientConnected(i) && !IsFakeClient(i))
-			ClientCommand(i, "redirect %s", sAdress);
+			ClientCommand(i, "redirect %s", sAddress);
 	}
 }
 
@@ -826,8 +826,8 @@ bool PluginConfig_Validate(PluginConfig config)
 bool Security_IsRestartSafe()
 {
 	// Skip security checks if disabled
-    if (!g_Config.enableSecurity)
-        return true;
+	if (!g_Config.enableSecurity)
+		return true;
 
 	// Check if we're already in a restart process
 	if (g_State.isRestarting)
@@ -1097,27 +1097,24 @@ int RestartScheduler_CalculateNextRestartTime()
 	// Apply early restart logic if enabled (for delay-based or hybrid modes)
 	if (g_Config.earlyRestart && (g_Config.mode == RestartMode_Delay || g_Config.mode == RestartMode_Hybrid) && RestartScheduler_ShouldEarlyRestart())
 	{
-		int earlyTime = currentTime + ((g_Config.delayMinutes * 60) / 2);
-
-		// Safety check: don't allow early restart too soon (minimum 1 hour)
-		int minEarlyTime = currentTime + 3600; // 1 hour minimum
-		if (earlyTime < minEarlyTime)
-			earlyTime = minEarlyTime;
+		// Calculate early restart as half of the remaining time until the scheduled restart
+		int remainingTime = nextTime - currentTime;
+		int earlyTime = currentTime + (remainingTime / 2);
 
 		// Only apply early restart if it would make the restart happen sooner
 		if (nextTime > earlyTime)
 		{
 			nextTime = earlyTime;
-			LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, delay reduced by half (minimum 1 hour)");
+			LogPluginMessage(LogLevel_Info, "Early restart applied: no human players online, remaining time reduced by half");
 		}
 	}
 
-	// Ensure minimum interval from NOW
+	// Ensure minimum interval from NOW (applies to all modes and early restart)
 	int minimumNextTime = currentTime + MIN_RESTART_INTERVAL;
 	if (nextTime < minimumNextTime)
 	{
 		nextTime = minimumNextTime;
-		LogPluginMessage(LogLevel_Warning, "Restart time adjusted to respect minimum interval from current time");
+		LogPluginMessage(LogLevel_Warning, "Restart time adjusted to respect minimum interval (%d seconds) from current time", MIN_RESTART_INTERVAL);
 	}
 
 	LogPluginMessage(LogLevel_Debug, "Next restart calculated: %d (current: %d, delta: %d minutes)", nextTime, currentTime, (nextTime - currentTime) / 60);
