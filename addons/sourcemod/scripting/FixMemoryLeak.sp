@@ -173,6 +173,9 @@ public void OnMapStart()
 	// Reload scheduled restarts in case configuration changed
 	ConfigManager_LoadScheduledRestarts();
 
+	// Restore persisted restart state from config when valid
+	RestartScheduler_RestoreStateFromConfig();
+
 	// Check if we just restarted and need to change to the correct map
 	char sectionValue[PLATFORM_MAX_PATH];
 	if (GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sectionValue) && strcmp(sectionValue, "1") == 0)
@@ -230,7 +233,6 @@ public Action Hook_OnMapChange(int args)
 		// Schedule next restart for the next map
 		RestartScheduler_ScheduleNextRestart("");
 		PerformServerRestart();
-		return Plugin_Stop;
 	}
 	else
 	{
@@ -1267,8 +1269,40 @@ bool RestartScheduler_IsRestartDue()
 	if (g_State.isPostponed)
 		return false;
 
+	if (g_State.nextRestartTime <= 0)
+	{
+		LogPluginMessage(LogLevel_Warning, "Restart due check skipped: invalid next restart time (%d)", g_State.nextRestartTime);
+		return false;
+	}
+
 	int currentTime = GetTime();
 	return (currentTime >= g_State.nextRestartTime);
+}
+
+void RestartScheduler_RestoreStateFromConfig()
+{
+	char sectionValue[PLATFORM_MAX_PATH];
+	if (!GetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", sectionValue))
+		return;
+
+	int savedRestartTime = StringToInt(sectionValue);
+	int currentTime = GetTime();
+
+	if (savedRestartTime <= currentTime)
+		return;
+
+	g_State.nextRestartTime = savedRestartTime;
+
+	if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue) && sectionValue[0] != '\0')
+	{
+		strcopy(g_State.nextMap, sizeof(g_State.nextMap), sectionValue);
+		g_State.nextMapSet = true;
+		LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d on map '%s'", g_State.nextRestartTime, g_State.nextMap);
+	}
+	else
+	{
+		LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d", g_State.nextRestartTime);
+	}
 }
 
 void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
