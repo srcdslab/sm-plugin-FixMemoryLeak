@@ -1286,22 +1286,27 @@ void RestartScheduler_RestoreStateFromConfig()
 		return;
 
 	int savedRestartTime = StringToInt(sectionValue);
-	int currentTime = GetTime();
-
-	if (savedRestartTime <= currentTime)
+	if (savedRestartTime <= 0)
 		return;
 
 	g_State.nextRestartTime = savedRestartTime;
+	int currentTime = GetTime();
 
 	if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue) && sectionValue[0] != '\0')
 	{
 		strcopy(g_State.nextMap, sizeof(g_State.nextMap), sectionValue);
 		g_State.nextMapSet = true;
-		LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d on map '%s'", g_State.nextRestartTime, g_State.nextMap);
+		if (g_State.nextRestartTime <= currentTime)
+			LogPluginMessage(LogLevel_Info, "Restored overdue restart from config: %d on map '%s' (restart remains due)", g_State.nextRestartTime, g_State.nextMap);
+		else
+			LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d on map '%s'", g_State.nextRestartTime, g_State.nextMap);
 	}
 	else
 	{
-		LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d", g_State.nextRestartTime);
+		if (g_State.nextRestartTime <= currentTime)
+			LogPluginMessage(LogLevel_Info, "Restored overdue restart from config: %d (restart remains due)", g_State.nextRestartTime);
+		else
+			LogPluginMessage(LogLevel_Info, "Restored next restart from config: %d", g_State.nextRestartTime);
 	}
 }
 
