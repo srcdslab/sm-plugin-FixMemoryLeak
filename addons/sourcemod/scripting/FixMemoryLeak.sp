@@ -366,7 +366,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		ServerCommand("sm_csay %t", "Restart Start Other");
 		ServerCommand("sm_msay %t", "Restart Start Other");
 		PrintHintTextToAll("%t", "Restart Start Other");
-		CPrintToChatAll("%t %t", "Alert", "Restart Start Chat");
+		CPrintToChatAll("%t", "Alert", "Restart Start Chat");
 	}
 
 	return Plugin_Continue;
