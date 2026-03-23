@@ -53,6 +53,16 @@ enum struct PluginConfig
 	bool countBots;
 	bool earlyRestart;
 	bool enableSecurity;
+
+	void Init()
+	{
+		this.mode = RestartMode_Hybrid;
+		this.delayMinutes = 1440;
+		this.maxPlayers = -1;
+		this.countBots = false;
+		this.earlyRestart = true;
+		this.enableSecurity = true;
+	}
 }
 
 enum struct ScheduledRestart
@@ -69,8 +79,20 @@ enum struct PluginState
 	bool isPostponed;
 	bool nextMapSet;
 	bool commandsExecuted;
+	bool isManualRestart;
 	int nextRestartTime;
 	char nextMap[PLATFORM_MAX_PATH];
+
+	void Reset()
+	{
+		this.isRestarting = false;
+		this.isPostponed = false;
+		this.nextMapSet = false;
+		this.commandsExecuted = false;
+		this.isManualRestart = false;
+		this.nextRestartTime = 0;
+		this.nextMap[0] = '\0';
+	}
 }
 
 // ==========================================
@@ -96,12 +118,7 @@ int g_iServerPort;
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	g_bLate = late;
-	g_State.isRestarting = false;
-	g_State.isPostponed = false;
-	g_State.nextMapSet = false;
-	g_State.commandsExecuted = false;
-	g_State.nextRestartTime = 0;
-	g_State.nextMap[0] = '\0';
+	g_State.Reset();
 	return APLRes_Success;
 }
 
@@ -210,28 +227,46 @@ public void OnCvarChanged(ConVar convar, const char[] oldValue, const char[] new
 	}
 
 	// Recalculate next restart time
-	OnMapStart();
+	if (!g_State.nextMapSet)
+	{
+		RestartScheduler_ScheduleNextRestart("");
+	}
 }
 
 #if defined _mapchooser_extended_included_
 public void OnSetNextMap(const char[] map)
 {
-	// In case nextmap get changed anytime
-	g_State.nextMapSet = false;
-	RestartScheduler_ScheduleNextRestart(map);
+	// Only update the target map, don't recalculate restart time if already set
+	if (g_State.nextMapSet)
+	{
+		strcopy(g_State.nextMap, sizeof(g_State.nextMap), map);
+		SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", map);
+		LogPluginMessage(LogLevel_Debug, "Next map updated to '%s' (restart time unchanged)", map);
+	}
+	else
+	{
+		RestartScheduler_ScheduleNextRestart(map);
+	}
 }
 #endif
 
 public Action Hook_OnMapChange(int args)
 {
-	LogPluginMessage(LogLevel_Debug, "Map change hook triggered");
+	// Read the next map from config (already saved by ScheduleNextRestart)
+	char nextMap[PLATFORM_MAX_PATH];
+	if (!GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", nextMap))
+		nextMap[0] = '\0';
+	LogPluginMessage(LogLevel_Debug, "Map change hook triggered with next map: %s", nextMap);
 
 	if (RestartScheduler_IsRestartDue() && !RestartScheduler_ShouldPostponeRestart())
 	{
 		LogPluginMessage(LogLevel_Info, "Initiating scheduled server restart");
 
+		// Reset nextMapSet BEFORE scheduling so it picks the new next time
+		g_State.nextMapSet = false;
+
 		// Schedule next restart for the next map
-		RestartScheduler_ScheduleNextRestart("");
+		RestartScheduler_ScheduleNextRestart(nextMap);
 		PerformServerRestart();
 	}
 	else
@@ -245,8 +280,8 @@ public Action Hook_OnMapChange(int args)
 
 public Action Hook_OnServerQuit(int args)
 {
-	// Security check: prevent restart loops
-	if (g_State.isRestarting)
+	// Security check: prevent restart loops (skip if manual restart)
+	if (!g_State.isManualRestart && g_State.isRestarting)
 	{
 		if (g_Config.enableSecurity)
 		{
@@ -262,19 +297,16 @@ public Action Hook_OnServerQuit(int args)
 
 	LogPluginMessage(LogLevel_Info, "Server quit detected - saving restart state");
 
-	// Mark that we're restarting to prevent loops
 	g_State.isRestarting = true;
 
-	// Schedule restart for current map
 	char currentMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(currentMap, sizeof(currentMap));
-	RestartScheduler_ScheduleNextRestart(currentMap);
+	strcopy(g_State.nextMap, sizeof(g_State.nextMap), currentMap);
+	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", currentMap);
 
-	// Save restart state and reconnect players
 	ReconnectPlayers();
 	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
 
-	// Let the original quit command proceed
 	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server quit to proceed");
 	return Plugin_Continue;
 }
@@ -282,7 +314,7 @@ public Action Hook_OnServerQuit(int args)
 public Action Hook_OnServerRestart(int args)
 {
 	// Security check: prevent restart loops
-	if (g_State.isRestarting)
+	if (!g_State.isManualRestart && g_State.isRestarting)
 	{
 		if (g_Config.enableSecurity)
 		{
@@ -304,7 +336,8 @@ public Action Hook_OnServerRestart(int args)
 	// Schedule restart for current map
 	char currentMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(currentMap, sizeof(currentMap));
-	RestartScheduler_ScheduleNextRestart(currentMap);
+	strcopy(g_State.nextMap, sizeof(g_State.nextMap), currentMap);
+	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", currentMap);
 
 	// Save restart state and reconnect players
 	ReconnectPlayers();
@@ -412,8 +445,11 @@ public Action Command_RestartServer(int client, int argc)
 	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "0");
 	SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
 
+	// Mark as manual restart to skip delay and checks
+	g_State.isManualRestart = true;
+
 	// Force the restart immediately
-	ForceChangeLevel(nextMap, "FixMemoryLeak");
+	PerformServerRestart();
 
 	LogPluginMessage(LogLevel_Info, "Manual server restart initiated to map: %s", nextMap);
 	return Plugin_Handled;
@@ -879,20 +915,10 @@ bool Security_ValidateScheduledRestart(ScheduledRestart restart)
 // ==========================================
 // CONFIG MANAGER
 // ==========================================
-void PluginConfig_Init(PluginConfig config)
-{
-	config.mode = RestartMode_Hybrid;
-	config.delayMinutes = 1440; // 24 hours
-	config.maxPlayers = -1;
-	config.countBots = false;
-	config.earlyRestart = true;
-	config.enableSecurity = true;
-}
-
 bool ConfigManager_LoadConfiguration()
 {
 	// Initialize defaults
-	PluginConfig_Init(g_Config);
+	g_Config.Init();
 
 	// Load from CVars with validation
 	g_Config.mode = view_as<RestartMode>(g_cRestartMode.IntValue);
@@ -912,7 +938,7 @@ bool ConfigManager_LoadConfiguration()
 	if (!PluginConfig_Validate(g_Config))
 	{
 		LogPluginMessage(LogLevel_Error, "Invalid configuration detected, using defaults");
-		PluginConfig_Init(g_Config);
+		g_Config.Init();
 		return false;
 	}
 
@@ -1016,7 +1042,7 @@ int ConfigManager_CalculateNextOccurrenceTimestamp(ScheduledRestart restart)
 	int minutesDiff = targetWeekMinutes - currentWeekMinutes;
 
 	// If target is in the past this week, schedule for next week
-	if (minutesDiff < 0)
+	if (minutesDiff <= 0)
 		minutesDiff += 7 * 24 * 60; // Add one week in minutes
 
 	// Calculate target timestamp
@@ -1290,12 +1316,14 @@ void RestartScheduler_RestoreStateFromConfig()
 		return;
 
 	g_State.nextRestartTime = savedRestartTime;
+	g_State.nextMapSet = true;  // Prevent ScheduleNextRestart from overwriting the restored time
+
 	int currentTime = GetTime();
 
 	if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue) && sectionValue[0] != '\0')
 	{
 		strcopy(g_State.nextMap, sizeof(g_State.nextMap), sectionValue);
-		g_State.nextMapSet = true;
+
 		if (g_State.nextRestartTime <= currentTime)
 			LogPluginMessage(LogLevel_Info, "Restored overdue restart from config: %d on map '%s' (restart remains due)", g_State.nextRestartTime, g_State.nextMap);
 		else
