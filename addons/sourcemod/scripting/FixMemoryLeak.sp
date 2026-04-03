@@ -75,13 +75,19 @@ enum struct ScheduledRestart
 
 enum struct PluginState
 {
+	// Runtime only
 	bool isRestarting;
 	bool isPostponed;
 	bool nextMapSet;
 	bool commandsExecuted;
 	bool isManualRestart;
+	bool isScheduledEndOfMap;
+
+	// Persisted
 	int nextRestartTime;
 	char nextMap[PLATFORM_MAX_PATH];
+	bool restarted;
+	bool changed;
 
 	void Reset()
 	{
@@ -90,8 +96,11 @@ enum struct PluginState
 		this.nextMapSet = false;
 		this.commandsExecuted = false;
 		this.isManualRestart = false;
+		this.isScheduledEndOfMap = false;
 		this.nextRestartTime = 0;
 		this.nextMap[0] = '\0';
+		this.restarted = false;
+		this.changed = false;
 	}
 }
 
@@ -157,6 +166,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_svnextrestart", Command_SvNextRestart, ADMFLAG_RCON, "Display time until next scheduled restart");
 	RegAdminCmd("sm_reloadrestartcfg", Command_DebugConfig, ADMFLAG_ROOT, "Reload restart configuration from file");
 	RegAdminCmd("sm_forcerestartcmds", Command_ForceRestartCommands, ADMFLAG_ROOT, "Force execution of post-restart commands");
+	RegAdminCmd("sm_schedulerestart", Command_ScheduleEndOfMapRestart, ADMFLAG_ROOT, "Schedule a server restart at the end of the current map (toggle)");
 
 	// Register server command hooks
 	RegServerCmd("changelevel", Hook_OnMapChange);
@@ -182,31 +192,27 @@ public void OnMapStart()
 {
 	LogPluginMessage(LogLevel_Debug, "Map start - resetting state and scheduling next restart");
 
-	// Reset state for new map
 	g_State.isRestarting = false;
 	g_State.isPostponed = false;
 	g_State.nextMapSet = false;
+	g_State.isScheduledEndOfMap = false;
 
-	// Reload scheduled restarts in case configuration changed
 	ConfigManager_LoadScheduledRestarts();
 
-	// Restore persisted restart state from config when valid
+	PluginState_Load();
+
 	RestartScheduler_RestoreStateFromConfig();
 
-	// Check if we just restarted and need to change to the correct map
-	char sectionValue[PLATFORM_MAX_PATH];
-	if (GetSectionValue(CONFIG_KV_INFO_NAME, "restarted", sectionValue) && strcmp(sectionValue, "1") == 0)
+	if (g_State.restarted && !g_State.changed && g_State.nextMap[0] != '\0')
 	{
-		if (GetSectionValue(CONFIG_KV_INFO_NAME, "changed", sectionValue) && strcmp(sectionValue, "0") == 0 && GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue))
-		{
-			SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "1");
-			DataPack dp;
-			CreateDataTimer(1.0, Timer_ChangeToNextMap, dp, TIMER_FLAG_NO_MAPCHANGE);
-			dp.WriteString(sectionValue);
-		}
+		g_State.changed = true;
+		PluginState_Save();
+
+		DataPack dp;
+		CreateDataTimer(1.0, Timer_ChangeToNextMap, dp, TIMER_FLAG_NO_MAPCHANGE);
+		dp.WriteString(g_State.nextMap);
 	}
 
-	// Schedule next restart for this map
 	RestartScheduler_ScheduleNextRestart("");
 }
 
@@ -240,7 +246,7 @@ public void OnSetNextMap(const char[] map)
 	if (g_State.nextMapSet)
 	{
 		strcopy(g_State.nextMap, sizeof(g_State.nextMap), map);
-		SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", map);
+		PluginState_Save();
 		LogPluginMessage(LogLevel_Debug, "Next map updated to '%s' (restart time unchanged)", map);
 	}
 	else
@@ -252,105 +258,117 @@ public void OnSetNextMap(const char[] map)
 
 public Action Hook_OnMapChange(int args)
 {
-	// Read the next map from config (already saved by ScheduleNextRestart)
 	char nextMap[PLATFORM_MAX_PATH];
-	if (!GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", nextMap))
-		nextMap[0] = '\0';
+	strcopy(nextMap, sizeof(nextMap), g_State.nextMap);
 	LogPluginMessage(LogLevel_Debug, "Map change hook triggered with next map: %s", nextMap);
+
+	// End-of-map restart scheduled via sm_schedulerestart takes priority
+	if (g_State.isScheduledEndOfMap)
+	{
+		LogPluginMessage(LogLevel_Info, "Triggering scheduled end-of-map server restart");
+		g_State.isScheduledEndOfMap = false;
+		g_State.nextMapSet = false;
+		RestartScheduler_ScheduleNextRestart(nextMap);
+		PerformManualRestart();
+		return Plugin_Continue;
+	}
 
 	if (RestartScheduler_IsRestartDue() && !RestartScheduler_ShouldPostponeRestart())
 	{
 		LogPluginMessage(LogLevel_Info, "Initiating scheduled server restart");
 
-		// Reset nextMapSet BEFORE scheduling so it picks the new next time
 		g_State.nextMapSet = false;
-
-		// Schedule next restart for the next map
 		RestartScheduler_ScheduleNextRestart(nextMap);
 		PerformServerRestart();
 	}
 	else
 	{
-		// Clear postponement for next cycle
 		g_State.isPostponed = false;
 	}
 
 	return Plugin_Continue;
 }
 
-public Action Hook_OnServerQuit(int args)
+Action Helper_OnServerShutdown(bool isRestart)
 {
+	char commandName[16];
+	strcopy(commandName, sizeof(commandName), isRestart ? "_restart" : "quit");
+
 	// Security check: prevent restart loops (skip if manual restart)
 	if (!g_State.isManualRestart && g_State.isRestarting)
 	{
 		if (g_Config.enableSecurity)
 		{
-			LogPluginMessage(LogLevel_Error, "Server quit blocked: Already in restart process (potential restart loop detected)");
+			LogPluginMessage(LogLevel_Error, "Server %s blocked: Already in restart process (potential restart loop detected)", commandName);
 			return Plugin_Stop;
 		}
 		else
 		{
-			LogPluginMessage(LogLevel_Warning, "Server quit during restart process - allowing quit to proceed (security disabled)");
+			LogPluginMessage(LogLevel_Warning, "Server %s during restart process - allowing to proceed (security disabled)", commandName);
 			return Plugin_Continue;
 		}
 	}
 
-	LogPluginMessage(LogLevel_Info, "Server quit detected - saving restart state");
+	LogPluginMessage(LogLevel_Info, "Server %s detected - saving restart state", commandName);
 
 	g_State.isRestarting = true;
 
-	char currentMap[PLATFORM_MAX_PATH];
-	GetCurrentMap(currentMap, sizeof(currentMap));
-	strcopy(g_State.nextMap, sizeof(g_State.nextMap), currentMap);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", currentMap);
+	// Don't overwrite nextmap if manual restart (already set by Command_RestartServer)
+	if (!g_State.isManualRestart)
+	{
+		char currentMap[PLATFORM_MAX_PATH];
+		GetCurrentMap(currentMap, sizeof(currentMap));
+		strcopy(g_State.nextMap, sizeof(g_State.nextMap), currentMap);
+	}
 
+	g_State.restarted = true;
+	PluginState_Save();
 	ReconnectPlayers();
-	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
 
-	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server quit to proceed");
+	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server %s to proceed", commandName);
 	return Plugin_Continue;
+}
+
+public Action Hook_OnServerQuit(int args)
+{
+	return Helper_OnServerShutdown(false);
 }
 
 public Action Hook_OnServerRestart(int args)
 {
-	// Security check: prevent restart loops
-	if (!g_State.isManualRestart && g_State.isRestarting)
-	{
-		if (g_Config.enableSecurity)
-		{
-			LogPluginMessage(LogLevel_Error, "Server restart blocked: Already in restart process (potential restart loop detected)");
-			return Plugin_Stop;
-		}
-		else
-		{
-			LogPluginMessage(LogLevel_Warning, "Server restart during restart process - allowing restart to proceed (security disabled)");
-			return Plugin_Continue;
-		}
-	}
-
-	LogPluginMessage(LogLevel_Info, "Server restart command detected - saving restart state");
-
-	// Mark that we're restarting to prevent loops
-	g_State.isRestarting = true;
-
-	// Schedule restart for current map
-	char currentMap[PLATFORM_MAX_PATH];
-	GetCurrentMap(currentMap, sizeof(currentMap));
-	strcopy(g_State.nextMap, sizeof(g_State.nextMap), currentMap);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", currentMap);
-
-	// Save restart state and reconnect players
-	ReconnectPlayers();
-	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
-
-	// Let the original restart command proceed
-	LogPluginMessage(LogLevel_Info, "Restart state saved, allowing server restart to proceed");
-	return Plugin_Continue;
+	return Helper_OnServerShutdown(true);
 }
 
 public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	LogPluginMessage(LogLevel_Debug, "Round end - checking restart conditions");
+
+	int timeleft;
+	GetMapTimeLeft(timeleft);
+
+	// Map still has time left - show "restart soon" warnings if applicable
+	if (timeleft > 0)
+	{
+		// Should we warn players about an upcoming restart?
+		if (g_State.isScheduledEndOfMap || (RestartScheduler_IsRestartDue() && !g_State.isPostponed))
+		{
+			LogPluginMessage(LogLevel_Debug, "Showing 'restart soon' warnings");
+			PrintHintTextToAll("%t", "Restart Soon Other");
+			CPrintToChatAll("%t %t", "Alert", "Restart Soon Chat", "Alert");
+			ServerCommand("sm_csay %t", "Restart Soon Other");
+			if (!IsVoteInProgress())
+				ServerCommand("sm_msay %t", "Restart Soon Other");
+		}
+
+		return Plugin_Continue;
+	}
+
+	// Map has ended - handle end-of-map scheduled restart first
+	if (g_State.isScheduledEndOfMap)
+	{
+		PerformManualRestart();
+		return Plugin_Continue;
+	}
 
 	if (!RestartScheduler_IsRestartDue())
 	{
@@ -358,24 +376,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		return Plugin_Continue;
 	}
 
-	int timeleft;
-	GetMapTimeLeft(timeleft);
-
-	// Only show warnings when map is about to end
-	if (timeleft > 0)
-	{
-		// Check if we should show "restart soon" warnings
-		if (!g_State.isPostponed && !IsVoteInProgress())
-		{
-			LogPluginMessage(LogLevel_Debug, "Showing 'restart soon' warnings");
-			ServerCommand("sm_msay %t", "Restart Soon Other");
-			PrintHintTextToAll("%t", "Restart Soon Other");
-			CPrintToChatAll("%t %t", "Alert", "Restart Soon Chat", "Alert");
-		}
-		return Plugin_Continue;
-	}
-
-	// Map has ended - check if restart should be postponed
+	// Check if restart should be postponed
 	if (RestartScheduler_ShouldPostponeRestart())
 	{
 		g_State.isPostponed = true;
@@ -410,18 +411,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 // ==========================================
 public Action Command_RestartServer(int client, int argc)
 {
-	// Check permissions and get client info
-	char clientName[64];
-	if (client == 0)
-	{
-		strcopy(clientName, sizeof(clientName), "Server Console");
-	}
-	else if (!GetClientName(client, clientName, sizeof(clientName)))
-	{
-		Format(clientName, sizeof(clientName), "Unknown (ID: %d)", client);
-	}
-
-	LogPluginMessage(LogLevel_Info, "Manual restart requested by: %s", clientName);
+	LogPluginMessage(LogLevel_Info, "Manual restart requested by: %L", client);
 
 	char nextMap[PLATFORM_MAX_PATH];
 	if (!GetNextMap(nextMap, sizeof(nextMap)))
@@ -431,32 +421,71 @@ public Action Command_RestartServer(int client, int argc)
 		return Plugin_Handled;
 	}
 
-	// Set immediate restart time
-	g_State.nextRestartTime = GetTime();
-
-	// Save the next map without recalculating the restart time
-	strcopy(g_State.nextMap, sizeof(g_State.nextMap), nextMap);
-
-	// Save to configuration manually
-	char timeStr[32];
-	IntToString(g_State.nextRestartTime, timeStr, sizeof(timeStr));
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", timeStr);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", g_State.nextMap);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "0");
-	SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
-
-	// Mark as manual restart to skip delay and checks
-	g_State.isManualRestart = true;
-
-	// Force the restart immediately
-	PerformServerRestart();
+	PerformManualRestart();
 
 	LogPluginMessage(LogLevel_Info, "Manual server restart initiated to map: %s", nextMap);
 	return Plugin_Handled;
 }
 
+public Action Command_ScheduleEndOfMapRestart(int client, int argc)
+{
+	char clientName[64];
+	if (client == 0)
+		strcopy(clientName, sizeof(clientName), "Server Console");
+	else if (!GetClientName(client, clientName, sizeof(clientName)))
+		Format(clientName, sizeof(clientName), "Unknown (ID: %d)", client);
+
+	// Toggle: if already scheduled, cancel it
+	if (g_State.isScheduledEndOfMap)
+	{
+		g_State.isScheduledEndOfMap = false;
+
+		LogPluginMessage(LogLevel_Info, "%s cancelled the end-of-map restart", clientName);
+
+		CPrintToChatAll("%t %t", "Prefix", "EndOfMap Restart Cancelled", clientName);
+		CReplyToCommand(client, "%t %t", "Prefix", "EndOfMap Restart Cancelled", clientName);
+		return Plugin_Handled;
+	}
+
+	if (g_State.isRestarting)
+	{
+		CReplyToCommand(client, "%t %t", "Prefix", "Restart Already In Progress");
+		LogPluginMessage(LogLevel_Warning, "%s tried to schedule end-of-map restart but a restart is already in progress", clientName);
+		return Plugin_Handled;
+	}
+
+	g_State.isScheduledEndOfMap = true;
+
+	// Capture next map now; OnSetNextMap will update g_State.nextMap if MCE changes it later
+	char nextMap[PLATFORM_MAX_PATH];
+	if (!GetNextMap(nextMap, sizeof(nextMap)))
+	{
+		GetCurrentMap(nextMap, sizeof(nextMap));
+		LogPluginMessage(LogLevel_Warning, "No next map set at schedule time, using current map as fallback: %s", nextMap);
+	}
+
+	strcopy(g_State.nextMap, sizeof(g_State.nextMap), nextMap);
+	PluginState_Save();
+
+	LogPluginMessage(LogLevel_Info, "%s scheduled an end-of-map server restart (next map: %s)", clientName, nextMap);
+
+	CPrintToChatAll("%t %t", "Prefix", "EndOfMap Restart Scheduled Chat", clientName);
+	PrintHintTextToAll("%t", "EndOfMap Restart Scheduled Other", clientName);
+	ServerCommand("sm_msay %t", "EndOfMap Restart Scheduled Other", clientName);
+
+	CReplyToCommand(client, "%t %t", "Prefix", "EndOfMap Restart Confirm", nextMap);
+	return Plugin_Handled;
+}
+
 public Action Command_SvNextRestart(int client, int argc)
 {
+	// Show end-of-map scheduled restart status if active
+	if (g_State.isScheduledEndOfMap)
+	{
+		CReplyToCommand(client, "%t %t", "Prefix", "EndOfMap Restart Active");
+		return Plugin_Handled;
+	}
+
 	int currentTime = GetTime();
 	int timeUntilRestart = g_State.nextRestartTime - currentTime;
 
@@ -545,6 +574,9 @@ public Action Command_DebugConfig(int client, int argc)
 			CReplyToCommand(client, "%t %t", "Prefix", "Debug Early Restart", g_Config.earlyRestart ? "Yes" : "No");
 			CReplyToCommand(client, "%t %t", "Prefix", "Debug Security", g_Config.enableSecurity ? "Enabled" : "Disabled");
 
+			// Show end-of-map restart status
+			CReplyToCommand(client, "%t %t", "Prefix", "Debug EndOfMap Restart", g_State.isScheduledEndOfMap ? "Yes" : "No");
+
 			// Show scheduled restarts
 			if (g_ScheduledRestarts != null && g_ScheduledRestarts.Length > 0)
 			{
@@ -581,6 +613,16 @@ public Action Command_AdminCancel(int client, int argc)
 		strcopy(clientName, sizeof(clientName), "Server Console");
 	else if (!GetClientName(client, clientName, sizeof(clientName)))
 		Format(clientName, sizeof(clientName), "Unknown (ID: %d)", client);
+
+	// If an end-of-map restart is active, cancel that too
+	if (g_State.isScheduledEndOfMap)
+	{
+		g_State.isScheduledEndOfMap = false;
+		LogPluginMessage(LogLevel_Info, "%s cancelled the end-of-map restart via sm_cancelrestart", clientName);
+		CPrintToChatAll("%t %t", "Prefix", "EndOfMap Restart Cancelled", clientName);
+		CReplyToCommand(client, "%t %t", "Prefix", "EndOfMap Restart Cancelled", clientName);
+		return Plugin_Handled;
+	}
 
 	// Toggle postponement state
 	g_State.isPostponed = !g_State.isPostponed;
@@ -694,7 +736,6 @@ void InitializePlugin()
 
 void PerformServerRestart()
 {
-	// Security check
 	if (!Security_IsRestartSafe())
 	{
 		LogPluginMessage(LogLevel_Error, "Server restart blocked by security validation");
@@ -711,56 +752,30 @@ void PerformServerRestart()
 
 	LogPluginMessage(LogLevel_Info, "Initiating server restart process");
 
-	// Disconnect players safely
 	ReconnectPlayers();
 
-	// Mark restart in configuration
-	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "1");
+	g_State.restarted = true;
+	PluginState_Save();
 
-	// Schedule the actual quit
 	RequestFrame(ExecuteServerQuit);
 }
 
-stock void SetSectionValue(const char[] sConfigName, const char[] sSectionName, const char[] sSectionValue)
+void PerformManualRestart()
 {
-	KeyValues kv = null;
-	if (!ConfigManager_GetConfigKeyValues(kv))
-		return;
-
-	if (!kv.JumpToKey(sConfigName))
+	char nextMap[PLATFORM_MAX_PATH];
+	if (!GetNextMap(nextMap, sizeof(nextMap)))
 	{
-		delete kv;
+		LogPluginMessage(LogLevel_Warning, "Cannot restart server: no next map set");
 		return;
 	}
 
-	kv.SetString(sSectionName, sSectionValue);
-
-	char sFile[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sFile, sizeof(sFile), CONFIG_PATH);
-
-	kv.Rewind();
-	kv.ExportToFile(sFile);
-
-	delete kv;
-}
-
-stock bool GetSectionValue(const char[] sConfigName, const char[] sSectionName, char sSectionValue[PLATFORM_MAX_PATH])
-{
-	KeyValues kv = null;
-	if (!ConfigManager_GetConfigKeyValues(kv))
-		return false;
-
-	if (!kv.JumpToKey(sConfigName))
-	{
-		delete kv;
-		return false;
-	}
-
-	kv.GetString(sSectionName, sSectionValue, sizeof(sSectionValue), "");
-
-	delete kv;
-
-	return (strlen(sSectionValue) > 0);
+	strcopy(g_State.nextMap, sizeof(g_State.nextMap), nextMap);
+	g_State.nextRestartTime = GetTime();
+	g_State.restarted = false;
+	g_State.changed = false;
+	g_State.isManualRestart = true;
+	PluginState_Save();
+	PerformServerRestart();
 }
 
 stock void ReconnectPlayers()
@@ -842,25 +857,15 @@ void LogPluginMessage(LogLevel level, const char[] message, any ...)
 	char formattedMessage[512];
 	VFormat(formattedMessage, sizeof(formattedMessage), message, 3);
 
-	char levelPrefix[16];
-	switch (level)
-	{
-		case LogLevel_Debug:    strcopy(levelPrefix, sizeof(levelPrefix), "[DEBUG]");
-		case LogLevel_Info:     strcopy(levelPrefix, sizeof(levelPrefix), "[INFO]");
-		case LogLevel_Warning:  strcopy(levelPrefix, sizeof(levelPrefix), "[WARNING]");
-		case LogLevel_Error:    strcopy(levelPrefix, sizeof(levelPrefix), "[ERROR]");
-	}
+	static const char levelPrefixes[][] = { "[DEBUG]", "[INFO]", "[WARNING]", "[ERROR]" };
 
 	char finalMessage[512];
-	Format(finalMessage, sizeof(finalMessage), "[FixMemoryLeak] %s %s", levelPrefix, formattedMessage);
+	Format(finalMessage, sizeof(finalMessage), "[FixMemoryLeak] %s %s", levelPrefixes[level], formattedMessage);
 
-	switch (level)
-	{
-		case LogLevel_Debug:    LogMessage(finalMessage);
-		case LogLevel_Info:     LogMessage(finalMessage);
-		case LogLevel_Warning:  LogMessage(finalMessage);
-		case LogLevel_Error:    LogError(finalMessage);
-	}
+	if (level == LogLevel_Error)
+		LogError(finalMessage);
+	else
+		LogMessage(finalMessage);
 }
 
 // ==========================================
@@ -1307,23 +1312,15 @@ bool RestartScheduler_IsRestartDue()
 
 void RestartScheduler_RestoreStateFromConfig()
 {
-	char sectionValue[PLATFORM_MAX_PATH];
-	if (!GetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", sectionValue))
+	if (g_State.nextRestartTime <= 0)
 		return;
 
-	int savedRestartTime = StringToInt(sectionValue);
-	if (savedRestartTime <= 0)
-		return;
-
-	g_State.nextRestartTime = savedRestartTime;
-	g_State.nextMapSet = true;  // Prevent ScheduleNextRestart from overwriting the restored time
+	g_State.nextMapSet = true;
 
 	int currentTime = GetTime();
 
-	if (GetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", sectionValue) && sectionValue[0] != '\0')
+	if (g_State.nextMap[0] != '\0')
 	{
-		strcopy(g_State.nextMap, sizeof(g_State.nextMap), sectionValue);
-
 		if (g_State.nextRestartTime <= currentTime)
 			LogPluginMessage(LogLevel_Info, "Restored overdue restart from config: %d on map '%s' (restart remains due)", g_State.nextRestartTime, g_State.nextMap);
 		else
@@ -1342,8 +1339,6 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 {
 	if (g_State.nextMapSet)
 		return;
-
-	g_State.nextRestartTime = RestartScheduler_CalculateNextRestartTime();
 
 	if (nextMap[0] != '\0')
 	{
@@ -1365,12 +1360,10 @@ void RestartScheduler_ScheduleNextRestart(const char[] nextMap = "")
 	}
 
 	// Save to configuration
-	char timeStr[32];
-	IntToString(g_State.nextRestartTime, timeStr, sizeof(timeStr));
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextrestart", timeStr);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "nextmap", g_State.nextMap);
-	SetSectionValue(CONFIG_KV_INFO_NAME, "restarted", "0");
-	SetSectionValue(CONFIG_KV_INFO_NAME, "changed", "0");
+	g_State.nextRestartTime = RestartScheduler_CalculateNextRestartTime();
+	g_State.restarted = false;
+	g_State.changed = false;
+	PluginState_Save();
 
 	g_State.nextMapSet = true;
 
@@ -1393,4 +1386,63 @@ stock void GetDayName(int day, char[] buffer, int maxlen)
 		case 7: strcopy(buffer, maxlen, "Sunday");
 		default: strcopy(buffer, maxlen, "Invalid");
 	}
+}
+
+// ==========================================
+// PERSISTENT STATE MANAGEMENT
+// ==========================================
+bool PluginState_Load()
+{
+	KeyValues kv = null;
+	if (!ConfigManager_GetConfigKeyValues(kv))
+		return false;
+
+	if (!kv.JumpToKey(CONFIG_KV_INFO_NAME))
+	{
+		delete kv;
+		return false;
+	}
+
+	char buf[32];
+	kv.GetString("nextrestart", buf, sizeof(buf), "0");
+	g_State.nextRestartTime = StringToInt(buf);
+
+	kv.GetString("nextmap", g_State.nextMap, sizeof(g_State.nextMap), "");
+
+	kv.GetString("restarted", buf, sizeof(buf), "0");
+	g_State.restarted = strcmp(buf, "1") == 0;
+
+	kv.GetString("changed", buf, sizeof(buf), "0");
+	g_State.changed = strcmp(buf, "1") == 0;
+
+	delete kv;
+	return true;
+}
+
+bool PluginState_Save()
+{
+	KeyValues kv = null;
+	if (!ConfigManager_GetConfigKeyValues(kv))
+		return false;
+
+	if (!kv.JumpToKey(CONFIG_KV_INFO_NAME))
+	{
+		delete kv;
+		return false;
+	}
+
+	char buf[32];
+	IntToString(g_State.nextRestartTime, buf, sizeof(buf));
+	kv.SetString("nextrestart", buf);
+	kv.SetString("nextmap", g_State.nextMap);
+	kv.SetString("restarted", g_State.restarted ? "1" : "0");
+	kv.SetString("changed", g_State.changed ? "1" : "0");
+
+	char sFile[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sFile, sizeof(sFile), CONFIG_PATH);
+	kv.Rewind();
+	kv.ExportToFile(sFile);
+
+	delete kv;
+	return true;
 }
