@@ -400,7 +400,7 @@ public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 		ServerCommand("sm_csay %t", "Restart Start Other");
 		ServerCommand("sm_msay %t", "Restart Start Other");
 		PrintHintTextToAll("%t", "Restart Start Other");
-		CPrintToChatAll("%t", "Alert", "Restart Start Chat");
+		CPrintToChatAll("%t %t", "Alert", "Restart Soon Chat", "Alert");
 	}
 
 	return Plugin_Continue;
@@ -627,10 +627,10 @@ public Action Command_AdminCancel(int client, int argc)
 	// Toggle postponement state
 	g_State.isPostponed = !g_State.isPostponed;
 
-	LogPluginMessage(LogLevel_Info, "%s has %s the server restart", clientName, g_State.isPostponed ? "postponed" : "resumed");
+	LogPluginMessage(LogLevel_Info, "%s has %s the server restart", clientName, g_State.isPostponed ? "canceled" : "scheduled");
 
 	char action[32];
-	strcopy(action, sizeof(action), g_State.isPostponed ? "Postponed" : "Resumed");
+	strcopy(action, sizeof(action), g_State.isPostponed ? "Canceled" : "Scheduled");
 
 	CPrintToChatAll("%t %t", "Prefix", "Server Restart", clientName, action);
 
@@ -667,7 +667,7 @@ public Action Command_ForceRestartCommands(int client, int argc)
 
 	if (success)
 	{
-		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
+		CReplyToCommand(client, "%t %t", "Prefix", "Commands Reloaded Success");
 		LogPluginMessage(LogLevel_Info, "Post-restart commands executed successfully by %s", clientName);
 	}
 	else
