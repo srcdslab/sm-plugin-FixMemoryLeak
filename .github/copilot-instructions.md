@@ -15,8 +15,8 @@ This repository contains the **FixMemoryLeak** SourceMod plugin, designed to pre
 ## Technical Environment
 
 - **Language**: SourcePawn (`.sp` files)
-- **Platform**: SourceMod 1.11+ (builds against 1.11.0-git6934)
-- **Build System**: SourceKnight 0.2 (declarative build tool for SourceMod)
+- **Platform**: SourceMod 1.12 (builds against 1.12.0-git7165)
+- **Build System**: Native GitHub Actions workflow (`.github/workflows/ci.yml`) using `rumblefrog/setup-sp` and `spcomp`
 - **Dependencies**: 
   - SourceMod core
   - MultiColors (chat colors)
@@ -25,24 +25,16 @@ This repository contains the **FixMemoryLeak** SourceMod plugin, designed to pre
 
 ## Build System
 
-### Using SourceKnight
-This project uses SourceKnight for dependency management and building:
-
-```bash
-# Install SourceKnight (if not using CI)
-pip install sourceknight
-
-# Build the plugin
-sourceknight build
-
-# Output will be in .sourceknight/package/addons/sourcemod/plugins/
-```
+### Using GitHub Actions (CI)
+This project builds via a native GitHub Actions workflow that installs `spcomp` (via `rumblefrog/setup-sp`), clones the git-based dependencies (MultiColors, MapChooser Extended) into a local `include` folder, and compiles the plugin. See `.github/workflows/ci.yml` for the exact steps.
 
 ### Manual Compilation
-If SourceKnight is unavailable, you can compile manually with spcomp:
+You can compile locally with spcomp once the dependency includes are in place:
 ```bash
-# Ensure SourceMod includes are available
-spcomp -i"path/to/sourcemod/scripting/include" addons/sourcemod/scripting/FixMemoryLeak.sp
+# Fetch dependency includes into addons/sourcemod/scripting/include (see ci.yml "Install dependencies" step)
+# Then compile:
+cd addons/sourcemod/scripting
+spcomp -i include -o ../plugins/FixMemoryLeak.smx FixMemoryLeak.sp
 ```
 
 ## Project Structure
@@ -57,7 +49,6 @@ spcomp -i"path/to/sourcemod/scripting/include" addons/sourcemod/scripting/FixMem
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                    # Automated build and release
-├── sourceknight.yaml                # Build configuration
 └── .gitignore                       # Excludes build artifacts
 ```
 
@@ -146,11 +137,11 @@ All user-facing messages use translation files. Key principles:
 
 ### 2. Building & Testing
 ```bash
-# Build using SourceKnight
-sourceknight build
+# Build via CI (push/PR/workflow_dispatch triggers .github/workflows/ci.yml),
+# or compile locally as described above.
 
 # Copy to test server
-cp .sourceknight/package/addons/sourcemod/plugins/FixMemoryLeak.smx /path/to/server/addons/sourcemod/plugins/
+cp addons/sourcemod/plugins/FixMemoryLeak.smx /path/to/server/addons/sourcemod/plugins/
 
 # Test plugin loading
 sm plugins load FixMemoryLeak
@@ -214,7 +205,7 @@ delete kv;  // Always cleanup
 The repository uses GitHub Actions for automated building:
 
 - **Trigger**: Push, PR, or manual dispatch
-- **Build**: Uses SourceKnight action (`maxime1907/action-sourceknight@v1`)
+- **Build**: Native workflow using `rumblefrog/setup-sp` + `spcomp` (no external build tool)
 - **Package**: Creates distributable tar.gz with compiled plugin
 - **Release**: Automatic releases on tags and main branch updates
 
