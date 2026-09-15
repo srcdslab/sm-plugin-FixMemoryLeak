@@ -527,6 +527,42 @@ public Action Command_SelfTest(int client, int argc)
 		else { iFail++; ReplyToCommand(client, "[FAIL] GetModeZeroThresholdMinutes still respects min_uptime after halving (expected 30, got %d)", iResult); }
 	}
 
+	// A pending target survives a map change instead of being recomputed into tomorrow's
+	// slot - the whole reason scheduled restarts were being skipped.
+	{
+		int iHorizon = 8 * 24 * 60 * 60;
+
+		if (IsRestartTargetSane(iNow + 3600, iNow, iHorizon)) { iPass++; ReplyToCommand(client, "[PASS] IsRestartTargetSane keeps a pending in-horizon target"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] IsRestartTargetSane keeps a pending in-horizon target (expected true)"); }
+
+		// Overdue but never consumed: still the target, so the next changelevel restarts.
+		if (IsRestartTargetSane(iNow - 600, iNow, iHorizon)) { iPass++; ReplyToCommand(client, "[PASS] IsRestartTargetSane keeps an overdue target pending"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] IsRestartTargetSane keeps an overdue target pending (expected true)"); }
+
+		if (!IsRestartTargetSane(0, iNow, iHorizon)) { iPass++; ReplyToCommand(client, "[PASS] IsRestartTargetSane rejects an unset target"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] IsRestartTargetSane rejects an unset target (expected false)"); }
+
+		if (!IsRestartTargetSane(iNow + (30 * 24 * 60 * 60), iNow, iHorizon)) { iPass++; ReplyToCommand(client, "[PASS] IsRestartTargetSane rejects a target past the horizon"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] IsRestartTargetSane rejects a target past the horizon (expected false)"); }
+	}
+
+	// A configured slot resolves to the same whole-minute timestamp regardless of which
+	// second it gets computed on.
+	{
+		ConfiguredRestart crStable;
+		crStable.iDay = 3;
+		crStable.iHour = 14;
+		crStable.iMinute = 30;
+
+		int iA = GetConfiguredRestartTime(crStable, iNow);
+		int iB = GetConfiguredRestartTime(crStable, iNow + 37);
+		// The 37s step can legitimately cross the slot itself, which rolls it a week on.
+		bool bStable = (iA == iB) || ((iA - iNow) <= 60);
+
+		if ((iA % 60) == 0 && bStable) { iPass++; ReplyToCommand(client, "[PASS] GetConfiguredRestartTime is second-stable"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] GetConfiguredRestartTime is second-stable (got %d then %d)", iA, iB); }
+	}
+
 	ReplyToCommand(client, "[FixMemoryLeak] Selftest complete: %d passed, %d failed.", iPass, iFail);
 	return Plugin_Handled;
 }
@@ -646,6 +682,14 @@ stock bool IsRestartNeeded()
 	if (IsCooldownActive(g_iLastRestartTime, g_iCooldown, currentTime))
 		return false;
 
+	// Hard floor on *actual* uptime. ClampToMinUptime() only guards the scheduled timestamp
+	// at the moment it is computed, which says nothing about how long this process has been
+	// alive: now that a pending target survives across maps (see ResolveNextRestartTime), a
+	// server coming back up with an already-overdue target - crash, manual stop, a window
+	// that was missed - would otherwise restart again on its very first map change.
+	if (g_iMinUptime > 0 && CalculateUptime() < g_iMinUptime)
+		return false;
+
 	bool bHasPlayers = g_bEarlyRestart ? AnyRealPlayerConnected() : false;
 
 	switch (g_iMode)
@@ -715,12 +759,51 @@ public void RestartServer()
 	ServerCommand("quit");
 }
 
+/**
+ * A scheduled restart target has to survive map changes.
+ *
+ * IsRestartNeeded() is only consulted on "changelevel", so a target that comes due mid-map
+ * stays pending until the next map change. Every SetupNextRestart* caller used to recompute
+ * it from "now" instead - and OnSetNextMap runs that path once per map, as soon as
+ * MapChooser resolves the nextmap. Any recompute landing after the configured time (i.e.
+ * the whole rest of the map, which sm_restart_min_uptime makes near-certain by pushing an
+ * imminent target past the natural changelevel) made GetConfiguredClosestTime() return the
+ * *next* slot - a full day later - so the due restart was silently dropped. Repeat daily and
+ * the server simply never restarts.
+ *
+ * So: keep the pending target. A new one is computed only when there is none, when the
+ * persisted one is not sane, after a restart consumed it (SoftServerRestart), or when an
+ * admin explicitly forces it (RefreshNextRestartTime).
+ */
+stock bool IsRestartTargetSane(int iTarget, int iNow, int iHorizon)
+{
+	return iTarget > 0 && iTarget <= iNow + iHorizon;
+}
+
+// Furthest a legitimate target can sit, plus a day of slack. Mode 1 - and mode 2, which
+// takes the earlier of the two - can never exceed one week; mode 0 is bounded by
+// sm_restart_delay. Anything past this is a corrupted persisted value: without the bound, a
+// single bad "nextrestart" in the config would freeze the schedule forever now that the
+// target is no longer recomputed on every map.
+stock int GetMaxSaneRestartHorizon()
+{
+	return ((g_iMode == 0) ? (g_iDelay * 60) : (7 * 24 * 60 * 60)) + (24 * 60 * 60);
+}
+
+stock int ResolveNextRestartTime(int iNow)
+{
+	if (IsRestartTargetSane(g_iNextRestartTime, iNow, GetMaxSaneRestartHorizon()))
+		return g_iNextRestartTime;
+
+	return GetNextRestartTime(iNow);
+}
+
 stock void SetupNextRestartCurrentMap(bool bForce = false)
 {
 	char sMap[PLATFORM_MAX_PATH];
 	GetCurrentMap(sMap, sizeof(sMap));
 
-	int iNextTime = bForce ? GetTime() : GetNextRestartTime(GetTime());
+	int iNextTime = bForce ? GetTime() : ResolveNextRestartTime(GetTime());
 	SetNextRestart(iNextTime, sMap);
 }
 
@@ -749,23 +832,31 @@ stock void SetupNextRestartNextMap(const char[] map)
 		return;
 	}
 
-	SetNextRestart(GetNextRestartTime(GetTime()), sNextMap);
+	SetNextRestart(ResolveNextRestartTime(GetTime()), sNextMap);
 }
 
 stock void SetNextRestart(int iNextTime, const char[] sMap)
 {
+	bool bTimeChanged = (iNextTime != g_iNextRestartTime);
+
 	g_iNextRestartTime = iNextTime;
 	strcopy(g_sNextRestartMap, sizeof(g_sNextRestartMap), sMap);
 	g_bStateRestarted = false;
 	g_bStateChanged = false;
 
-	if (WriteRuntimeState())
+	if (!WriteRuntimeState())
+		LogError("[FixMemoryLeak] Failed to persist next restart (%d, map=%s).", iNextTime, sMap);
+	else if (bTimeChanged)
 		LogMessage("Next restart set at %d on %s", iNextTime, sMap);
 	else
-		LogError("[FixMemoryLeak] Failed to persist next restart (%d, map=%s).", iNextTime, sMap);
+		LogMessage("Next restart still pending at %d, now targeting %s", iNextTime, sMap);
 
-	// New target time: let the next check announce it right away.
-	g_flLastWarnTime = 0.0;
+	// New target time: let the next check announce it right away. An unchanged target must
+	// not reset this - every map change would otherwise restart the throttle and
+	// sm_restart_warn_interval would never actually space the announcements out.
+	if (bTimeChanged)
+		g_flLastWarnTime = 0.0;
+
 	g_bNextMapSet = true;
 }
 
@@ -773,7 +864,9 @@ stock void SetNextRestart(int iNextTime, const char[] sMap)
 // whatever nextmap is already tracked. Unlike SetupNextRestartNextMap(), this ignores
 // the g_bNextMapSet guard on purpose - it exists specifically to force a refresh when
 // an admin changes the scheduling convars or reloads the schedule live, so the
-// announced/queried next restart time never goes stale mid-map.
+// announced/queried next restart time never goes stale mid-map. It is also the only path
+// that deliberately throws away a still-pending target - ResolveNextRestartTime() keeps it
+// everywhere else.
 stock void RefreshNextRestartTime()
 {
 	if (g_sNextRestartMap[0])
@@ -854,8 +947,15 @@ stock int GetConfiguredRestartTime(ConfiguredRestart configuredRestart, int iNow
 	FormatTime(sBuffer, sizeof(sBuffer), "%M", iTime);
 	int iCurrentMinute = StringToInt(sBuffer);
 
+	// Zero the seconds as well. Without this the target inherited whatever second the
+	// computation happened to run on, so the same configured slot resolved to a slightly
+	// different timestamp every time and "06:45" silently became "06:45:47".
+	FormatTime(sBuffer, sizeof(sBuffer), "%S", iTime);
+	int iCurrentSecond = StringToInt(sBuffer);
+
 	iTime -= iCurrentHour * (60 * 60);
 	iTime -= iCurrentMinute * (60);
+	iTime -= iCurrentSecond;
 
 	iTime += configuredRestart.iHour * (60 * 60);
 	iTime += configuredRestart.iMinute * (60);
