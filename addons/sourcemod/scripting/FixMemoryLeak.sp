@@ -527,6 +527,21 @@ public Action Command_SelfTest(int client, int argc)
 		else { iFail++; ReplyToCommand(client, "[FAIL] GetModeZeroThresholdMinutes still respects min_uptime after halving (expected 30, got %d)", iResult); }
 	}
 
+	// GetEarlyRestartTime: mode 1/2 early restart on an empty server must actually fire.
+	{
+		int iResult = GetEarlyRestartTime(iNow + 1000, iNow - 1000);
+		if (iResult == iNow) { iPass++; ReplyToCommand(client, "[PASS] GetEarlyRestartTime halves the span since process start"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] GetEarlyRestartTime halves the span since process start (expected %d, got %d)", iNow, iResult); }
+
+		iResult = GetEarlyRestartTime(iNow - 100, iNow - 5000);
+		if (iResult <= iNow) { iPass++; ReplyToCommand(client, "[PASS] GetEarlyRestartTime keeps an overdue target due"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] GetEarlyRestartTime keeps an overdue target due (expected <= %d, got %d)", iNow, iResult); }
+
+		iResult = GetEarlyRestartTime(iNow + 1000, iNow + 2000);
+		if (iResult == iNow + 1000) { iPass++; ReplyToCommand(client, "[PASS] GetEarlyRestartTime leaves the target alone without a usable anchor"); }
+		else { iFail++; ReplyToCommand(client, "[FAIL] GetEarlyRestartTime leaves the target alone without a usable anchor (expected %d, got %d)", iNow + 1000, iResult); }
+	}
+
 	// A pending target survives a map change instead of being recomputed into tomorrow's
 	// slot - the whole reason scheduled restarts were being skipped.
 	{
@@ -675,6 +690,19 @@ stock int GetModeZeroThresholdMinutes(int iDelay, bool bEarlyRestart, bool bHasP
 	return iTime;
 }
 
+// Mode 1/2 early restart on an empty server: halve the span between process start and the
+// scheduled target, the timestamp equivalent of mode 0's "uptime >= delay / 2". Halving the
+// time remaining from *now* instead is a no-op (now + (T - now) / 2 is only reached once T
+// itself is), and must not be floored at now + min_uptime either, or an empty server never
+// restarts - the actual-uptime floor in IsRestartNeeded() already covers that concern.
+stock int GetEarlyRestartTime(int iTarget, int iProcessStart)
+{
+	if (iProcessStart <= 0 || iProcessStart >= iTarget)
+		return iTarget;
+
+	return iProcessStart + ((iTarget - iProcessStart) / 2);
+}
+
 stock bool IsRestartNeeded()
 {
 	int currentTime = GetTime();
@@ -712,11 +740,7 @@ stock bool IsRestartNeeded()
 			int iTime = g_iNextRestartTime;
 
 			if (g_bEarlyRestart && !bHasPlayers)
-			{
-				// Halve the *remaining* time, not the absolute timestamp.
-				int iHalvedRemaining = currentTime + ((iTime - currentTime) / 2);
-				iTime = ClampToMinUptime(iHalvedRemaining, g_iMinUptime, currentTime);
-			}
+				iTime = GetEarlyRestartTime(iTime, currentTime - RoundToFloor(GetEngineTime()));
 
 			return currentTime >= iTime;
 		}
@@ -780,14 +804,18 @@ stock bool IsRestartTargetSane(int iTarget, int iNow, int iHorizon)
 	return iTarget > 0 && iTarget <= iNow + iHorizon;
 }
 
-// Furthest a legitimate target can sit, plus a day of slack. Mode 1 - and mode 2, which
-// takes the earlier of the two - can never exceed one week; mode 0 is bounded by
-// sm_restart_delay. Anything past this is a corrupted persisted value: without the bound, a
-// single bad "nextrestart" in the config would freeze the schedule forever now that the
-// target is no longer recomputed on every map.
+// Furthest a legitimate target can sit, plus a day of slack. A configured slot is never more
+// than one week out, and every mode falls back to sm_restart_delay (mode 0 always, mode 1/2
+// when no slot is configured), so the bound is the larger of the two. Anything past this is a
+// corrupted persisted value: without the bound, a single bad "nextrestart" in the config
+// would freeze the schedule forever now that the target is no longer recomputed on every map.
+// Bounding it by the week alone would do the opposite for a delay above 8 days - the target
+// would be rejected and pushed forward on every map, so it would never be reached.
 stock int GetMaxSaneRestartHorizon()
 {
-	return ((g_iMode == 0) ? (g_iDelay * 60) : (7 * 24 * 60 * 60)) + (24 * 60 * 60);
+	int iWeek = 7 * 24 * 60 * 60;
+	int iDelay = g_iDelay * 60;
+	return ((iDelay > iWeek) ? iDelay : iWeek) + (24 * 60 * 60);
 }
 
 stock int ResolveNextRestartTime(int iNow)
@@ -1027,34 +1055,82 @@ stock int GetNextRestartTime(int iNow)
  * A missing or corrupted file is regenerated with safe defaults; a corrupted file is
  * first backed up (".corrupt-<timestamp>") so nothing is silently lost.
  */
-// KeyValues.ImportFromFile() is lenient about malformed braces - it can return true
-// on a genuinely broken file (mismatched "{"/"}") while silently nesting sections in
-// the wrong place instead of failing outright. WriteDefaultConfig() always creates all
-// three top-level sections, so on a healthy file (however it was hand-edited) all three
-// are always reachable directly under the root - if one is missing after a "successful"
-// import, the file is malformed, not just intentionally minimal.
-stock bool HasValidConfigSchema(KeyValues kv, char[] sMissing = "", int iMissingLen = 0)
-{
-	kv.Rewind();
-	bool bHasCommands = kv.JumpToKey(CONFIG_KV_COMMANDS_NAME);
-	kv.Rewind();
-	bool bHasInfo = kv.JumpToKey(CONFIG_KV_INFO_NAME);
-	kv.Rewind();
-	bool bHasRestart = kv.JumpToKey(CONFIG_KV_RESTART_NAME);
-	kv.Rewind();
+#define CONFIG_SECTION_COMMANDS (1 << 0)
+#define CONFIG_SECTION_INFO     (1 << 1)
+#define CONFIG_SECTION_RESTART  (1 << 2)
+#define CONFIG_SECTION_ALL      (CONFIG_SECTION_COMMANDS | CONFIG_SECTION_INFO | CONFIG_SECTION_RESTART)
 
-	if (iMissingLen > 0)
+stock int GetConfigSectionBit(int iIndex, char[] sName, int iMaxLen)
+{
+	switch (iIndex)
 	{
-		sMissing[0] = '\0';
-		if (!bHasCommands)
-			StrCat(sMissing, iMissingLen, "\"commands\" ");
-		if (!bHasInfo)
-			StrCat(sMissing, iMissingLen, "\"info\" ");
-		if (!bHasRestart)
-			StrCat(sMissing, iMissingLen, "\"restart\" ");
+		case 0: strcopy(sName, iMaxLen, CONFIG_KV_COMMANDS_NAME);
+		case 1: strcopy(sName, iMaxLen, CONFIG_KV_INFO_NAME);
+		case 2: strcopy(sName, iMaxLen, CONFIG_KV_RESTART_NAME);
+	}
+	return (1 << iIndex);
+}
+
+// Bitmask of the known sections reachable directly under the root.
+stock int GetRootConfigSections(KeyValues kv)
+{
+	int iMask = 0;
+	char sName[16];
+
+	for (int i = 0; i < 3; i++)
+	{
+		int iBit = GetConfigSectionBit(i, sName, sizeof(sName));
+		kv.Rewind();
+		if (kv.JumpToKey(sName))
+			iMask |= iBit;
 	}
 
-	return bHasCommands && bHasInfo && bHasRestart;
+	kv.Rewind();
+	return iMask;
+}
+
+stock void FormatConfigSections(int iMask, char[] sBuffer, int iMaxLen)
+{
+	sBuffer[0] = '\0';
+	char sName[16];
+
+	for (int i = 0; i < 3; i++)
+	{
+		if (iMask & GetConfigSectionBit(i, sName, sizeof(sName)))
+			Format(sBuffer, iMaxLen, "%s\"%s\" ", sBuffer, sName);
+	}
+}
+
+// KeyValues.ImportFromFile() is lenient about malformed braces - it can return true on a
+// genuinely broken file (mismatched "{"/"}") while silently nesting the following sections
+// inside the unclosed one instead of failing outright. A section that is merely absent is
+// fine (an admin may drop an unused "commands" or "restart" block, and "info" is created on
+// the first write); a known section found one level down, under another top-level section,
+// is what a brace mismatch looks like. Returns the bitmask of such misplaced sections.
+stock int GetNestedConfigSections(KeyValues kv, int iMissingMask)
+{
+	int iNested = 0;
+	char sName[16];
+
+	kv.Rewind();
+	if (iMissingMask && kv.GotoFirstSubKey())
+	{
+		do
+		{
+			for (int i = 0; i < 3; i++)
+			{
+				int iBit = GetConfigSectionBit(i, sName, sizeof(sName));
+				if ((iMissingMask & iBit) && kv.JumpToKey(sName))
+				{
+					iNested |= iBit;
+					kv.GoBack();
+				}
+			}
+		} while (kv.GotoNextKey());
+	}
+
+	kv.Rewind();
+	return iNested;
 }
 
 stock bool GetConfigKv(KeyValues &kv)
@@ -1067,20 +1143,28 @@ stock bool GetConfigKv(KeyValues &kv)
 	bool bFileExists = FileExists(sFile);
 	bool bImported = bFileExists && kv.ImportFromFile(sFile);
 
-	char sMissing[64];
-	if (bImported && HasValidConfigSchema(kv, sMissing, sizeof(sMissing)))
-		return true;
+	int iNested = 0;
+	if (bImported)
+	{
+		iNested = GetNestedConfigSections(kv, CONFIG_SECTION_ALL & ~GetRootConfigSections(kv));
+		if (!iNested)
+			return true;
+	}
 
 	if (bFileExists)
 	{
 		char sBackup[PLATFORM_MAX_PATH];
 		FormatEx(sBackup, sizeof(sBackup), "%s.corrupt-%d", sFile, GetTime());
 
-		char sReason[96];
+		char sReason[128];
 		if (!bImported)
 			strcopy(sReason, sizeof(sReason), "file failed to parse (invalid KeyValues syntax, e.g. stray brace or a BOM/encoding issue)");
 		else
-			FormatEx(sReason, sizeof(sReason), "missing required section(s): %s", sMissing);
+		{
+			char sNested[64];
+			FormatConfigSections(iNested, sNested, sizeof(sNested));
+			FormatEx(sReason, sizeof(sReason), "section(s) %snested under another section, likely a missing closing brace", sNested);
+		}
 
 		if (RenameFile(sBackup, sFile))
 			LogError("[FixMemoryLeak] Config file was unreadable or malformed (%s), backed up to '%s' and regenerating defaults.", sReason, sBackup);
@@ -1159,20 +1243,22 @@ stock bool ExportConfigAtomic(KeyValues kv)
 	if (!kv.ExportToFile(sTmp))
 		return false;
 
-	// Validate the temp file actually parses AND still has all three required sections
-	// before trusting it over the live config. ExportToFile round-tripping the in-memory
-	// tree can still yield a technically-parseable file that is missing a section (e.g.
-	// if the section was empty) - without this schema check, that broken file would get
-	// promoted over the last known-good config, and the next read would discover the
-	// corruption too late and wipe the whole file (including the admin's schedule) back
-	// to defaults.
+	// Validate the temp file actually parses AND still has every section the in-memory tree
+	// had before trusting it over the live config. ExportToFile round-tripping the tree can
+	// still yield a technically-parseable file that lost a section (e.g. if the section was
+	// empty) - without this check, that broken file would get promoted over the last
+	// known-good config and the admin's schedule or commands would be silently dropped.
+	int iExpected = GetRootConfigSections(kv);
+
 	KeyValues kvCheck = new KeyValues(CONFIG_KV_NAME);
 	bool bValid = kvCheck.ImportFromFile(sTmp);
 
-	char sMissing[64];
-	if (bValid && !HasValidConfigSchema(kvCheck, sMissing, sizeof(sMissing)))
+	int iLost = bValid ? (iExpected & ~GetRootConfigSections(kvCheck)) : 0;
+	if (iLost)
 	{
-		LogError("[FixMemoryLeak] Refusing to persist restart state: exporting it produced a config missing section(s): %s - keeping the previous file on disk.", sMissing);
+		char sLost[64];
+		FormatConfigSections(iLost, sLost, sizeof(sLost));
+		LogError("[FixMemoryLeak] Refusing to persist restart state: exporting it produced a config missing section(s): %s- keeping the previous file on disk.", sLost);
 		bValid = false;
 	}
 
@@ -1316,24 +1402,20 @@ stock bool LoadConfiguredRestarts(bool bReload = true)
 		return false;
 	}
 
-	if (!kv.JumpToKey(CONFIG_KV_RESTART_NAME))
-	{
-		LogError("[FixMemoryLeak] Config section '%s' missing, no scheduled restarts loaded.", CONFIG_KV_RESTART_NAME);
-		delete kv;
-		return false;
-	}
-
-	if (!kv.GotoFirstSubKey())
-	{
-		delete kv;
-		return true;
-	}
-
+	// Reset before looking at the section, so emptying or removing the schedule and
+	// reloading actually drops the old slots instead of keeping them active.
 	if (bReload && g_iConfiguredRestarts != null)
 		delete g_iConfiguredRestarts;
 
 	if (g_iConfiguredRestarts == null)
 		g_iConfiguredRestarts = new ArrayList(sizeof(ConfiguredRestart));
+
+	// No "restart" section, or an empty one, simply means no scheduled slot.
+	if (!kv.JumpToKey(CONFIG_KV_RESTART_NAME) || !kv.GotoFirstSubKey())
+	{
+		delete kv;
+		return true;
+	}
 
 	char sKeyName[16];
 	char sValue[16];
