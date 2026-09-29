@@ -3,11 +3,19 @@
     "Prefix"
     {
         "en"            "{green}[SM]"
+        "zho"           "{green}[SM]"
+        "chi"           "{green}[SM]"
+        "fr"            "{green}[SM]"
+        "ru"            "{green}[SM]"
     }
 
     "Alert"
     {
         "en"            "{fullred}[Server]"
+        "zho"           "{fullred}[伺服器]"
+        "chi"           "{fullred}[服务器]"
+        "fr"            "{fullred}[Serveur]"
+        "ru"            "{fullred}[Сервер]"
     }
 
     // Command_RestartServer
