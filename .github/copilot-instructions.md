@@ -11,6 +11,19 @@ This repository contains the **FixMemoryLeak** SourceMod plugin, designed to pre
 - Multi-language support (English, Chinese, French, Russian)
 - Post-restart command execution
 - Integration with MapChooser Extended
+- Restart-loop circuit breakers (`sm_restart_min_uptime`, `sm_restart_cooldown`): the plugin can
+  never fire two automatic restarts closer together than the cooldown, regardless of what the
+  scheduling/persisted state says - this is what guarantees it can't restart on every map change.
+- Live countdown warnings that always show the actual remaining time ("restart in 23 minutes",
+  then 22, 21, ...) instead of snapping to fixed checkpoints. Spacing is just a minimum interval:
+  a long one (`sm_restart_warn_interval`) while far from the restart so it doesn't fire on every
+  map, and a short one (`sm_restart_warn_close_interval`) once inside `sm_restart_warn_close`
+  minutes so it effectively fires on every map.
+- Config file is self-healing: a missing or corrupted `configs/fixmemoryleak.cfg` is backed up
+  (`.corrupt-<timestamp>`) and regenerated with safe defaults, and all writes are atomic
+  (temp file + re-parse validation + rename) to survive a crash mid-write.
+- `sm_restart_selftest` runs a battery of assertions on the pure scheduling/safety functions with
+  synthetic inputs (no need to wait for a real restart to verify the logic).
 
 ## Technical Environment
 
@@ -99,25 +112,44 @@ The plugin uses KeyValues configuration files stored in `configs/fixmemoryleak.c
         "cmd"   "sm plugins reload adminmenu"
     }
     
-    "info"          // Runtime state tracking
+    "info"          // Runtime state tracking - plugin-owned, only ever written via
+                    // WriteRuntimeState() (atomic: temp file + reimport + rename)
     {
         "nextrestart"   "timestamp"
         "nextmap"       "mapname"
         "restarted"     "0/1"
         "changed"       "0/1"
+        "lastrestart"   "timestamp"  // last actual restart, used by sm_restart_cooldown
     }
     
     "restart"       // Scheduled restart times
     {
         "0"
         {
-            "day"       "1"     // 1=Sunday, 7=Saturday
-            "hour"      "6"     // 24-hour format
-            "minute"    "0"
+            "day"       "1"     // ISO-8601 weekday: 1=Monday .. 7=Sunday (matches FormatTime's %u)
+            "hour"      "6"     // 24-hour format, 0-23
+            "minute"    "0"     // 0-59
         }
     }
 }
 ```
+
+Reads of `info` are served from an in-memory cache (`g_iNextRestartTime`, `g_sNextRestartMap`,
+`g_bStateRestarted`, `g_bStateChanged`, `g_iLastRestartTime`), loaded once via
+`LoadRuntimeState()` per map start - never re-read from disk on every check. `commands` and
+`restart` stay admin-authored and are only read, never written by the plugin.
+
+### Anti restart-loop safety nets
+
+Two independent, mode-agnostic checks guarantee the plugin can never restart the server on every
+map change, even if the schedule/persisted state is wrong:
+
+- `sm_restart_min_uptime` (minutes): `GetNextRestartTime()` always clamps its result to at least
+  `now + min_uptime`, so a stale/misconfigured schedule can never compute "restart immediately".
+- `sm_restart_cooldown` (minutes): `IsRestartNeeded()` refuses to fire if less than `cooldown`
+  minutes have passed since `lastrestart`, regardless of what the scheduling math says.
+
+Both are pure functions (`ClampToMinUptime`, `IsCooldownActive`) covered by `sm_restart_selftest`.
 
 ## Translation System
 
@@ -189,15 +221,15 @@ AutoExecConfig(true);
 
 ### Working with KeyValues
 ```sourcepawn
-// Safe KeyValues pattern
+// Safe KeyValues pattern - GetConfigKv() self-heals a missing/corrupted file and
+// returns false only if it truly could not produce a usable config.
 KeyValues kv;
-GetConfigKv(kv);  // Creates and loads
-if (kv.JumpToKey("section"))
+if (GetConfigKv(kv) && kv.JumpToKey("section"))
 {
     // Work with values
     kv.GetString("key", buffer, sizeof(buffer));
 }
-delete kv;  // Always cleanup
+delete kv;  // Always cleanup, even on failure
 ```
 
 ## CI/CD Pipeline
