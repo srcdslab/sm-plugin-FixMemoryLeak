@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.5.0",
+	version = "1.5.1",
 	url = "https://github.com/srcdslab"
 }
 
@@ -93,16 +93,16 @@ public void OnPluginStart()
 	g_cWarnCloseInterval = CreateConVar("sm_restart_warn_close_interval", "60", "Minimum seconds between two countdown announcements while inside the sm_restart_warn_close window. Kept short so it still fires on effectively every map.", FCVAR_NOTIFY, true, 0.0, true, 3600.0);
 
 	// Hook CVARs
-	HookConVarChange(g_cRestartMode, OnCvarChanged);
-	HookConVarChange(g_cRestartDelay, OnCvarChanged);
-	HookConVarChange(g_cMaxPlayers, OnCvarChanged);
-	HookConVarChange(g_cMaxPlayersCountBots, OnCvarChanged);
-	HookConVarChange(g_cvEarlySvRestart, OnCvarChanged);
-	HookConVarChange(g_cMinUptime, OnCvarChanged);
-	HookConVarChange(g_cCooldown, OnCvarChanged);
-	HookConVarChange(g_cWarnClose, OnCvarChanged);
-	HookConVarChange(g_cWarnInterval, OnCvarChanged);
-	HookConVarChange(g_cWarnCloseInterval, OnCvarChanged);
+	g_cRestartMode.AddChangeHook(OnCvarChanged);
+	g_cRestartDelay.AddChangeHook(OnCvarChanged);
+	g_cMaxPlayers.AddChangeHook(OnCvarChanged);
+	g_cMaxPlayersCountBots.AddChangeHook(OnCvarChanged);
+	g_cvEarlySvRestart.AddChangeHook(OnCvarChanged);
+	g_cMinUptime.AddChangeHook(OnCvarChanged);
+	g_cCooldown.AddChangeHook(OnCvarChanged);
+	g_cWarnClose.AddChangeHook(OnCvarChanged);
+	g_cWarnInterval.AddChangeHook(OnCvarChanged);
+	g_cWarnCloseInterval.AddChangeHook(OnCvarChanged);
 
 	// Initialize values
 	g_iMode = g_cRestartMode.IntValue;
@@ -600,7 +600,7 @@ stock int GetClientCountEx(bool countBots)
 	return countBots ? iFakeClients + iRealClients : iRealClients;
 }
 
-public Action OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
+public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!IsRestartNeeded())
 	{
@@ -1181,7 +1181,6 @@ stock bool GetConfigKv(KeyValues &kv)
 	{
 		LogError("[FixMemoryLeak] CRITICAL: unable to create a usable config at %s.", sFile);
 		delete kv;
-		kv = null;
 		return false;
 	}
 
@@ -1190,47 +1189,47 @@ stock bool GetConfigKv(KeyValues &kv)
 
 stock bool WriteDefaultConfig(const char[] sFile)
 {
-	Handle hFile = OpenFile(sFile, "w");
+	File hFile = OpenFile(sFile, "w");
 
-	if (hFile == INVALID_HANDLE)
+	if (hFile == null)
 	{
 		LogError("[FixMemoryLeak] Could not create default config at %s", sFile);
 		return false;
 	}
 
-	WriteFileLine(hFile, "\"%s\"", CONFIG_KV_NAME);
-	WriteFileLine(hFile, "{");
+	hFile.WriteLine("\"%s\"", CONFIG_KV_NAME);
+	hFile.WriteLine("{");
 
-	WriteFileLine(hFile, "\t\"%s\"", CONFIG_KV_COMMANDS_NAME);
-	WriteFileLine(hFile, "\t{");
-	WriteFileLine(hFile, "\t\t\"cmd\"\t\"\"");
-	WriteFileLine(hFile, "\t\t\"cmd\"\t\"\"");
-	WriteFileLine(hFile, "\t}");
+	hFile.WriteLine("\t\"%s\"", CONFIG_KV_COMMANDS_NAME);
+	hFile.WriteLine("\t{");
+	hFile.WriteLine("\t\t\"cmd\"\t\"\"");
+	hFile.WriteLine("\t\t\"cmd\"\t\"\"");
+	hFile.WriteLine("\t}");
 
-	WriteFileLine(hFile, "\t\"%s\"", CONFIG_KV_INFO_NAME);
-	WriteFileLine(hFile, "\t{");
-	WriteFileLine(hFile, "\t\t\"nextrestart\"\t\"0\"");
-	WriteFileLine(hFile, "\t\t\"nextmap\"\t\"\"");
-	WriteFileLine(hFile, "\t\t\"restarted\"\t\"0\"");
-	WriteFileLine(hFile, "\t\t\"changed\"\t\"0\"");
-	WriteFileLine(hFile, "\t\t\"lastrestart\"\t\"0\"");
-	WriteFileLine(hFile, "\t}");
+	hFile.WriteLine("\t\"%s\"", CONFIG_KV_INFO_NAME);
+	hFile.WriteLine("\t{");
+	hFile.WriteLine("\t\t\"nextrestart\"\t\"0\"");
+	hFile.WriteLine("\t\t\"nextmap\"\t\"\"");
+	hFile.WriteLine("\t\t\"restarted\"\t\"0\"");
+	hFile.WriteLine("\t\t\"changed\"\t\"0\"");
+	hFile.WriteLine("\t\t\"lastrestart\"\t\"0\"");
+	hFile.WriteLine("\t}");
 
 	// "day" is ISO-8601 (1=Monday .. 7=Sunday), "hour" is 0-23, "minute" is 0-59.
 	// Leave "day" empty to disable this slot, or add more numbered blocks for more slots.
-	WriteFileLine(hFile, "\t\"%s\"", CONFIG_KV_RESTART_NAME);
-	WriteFileLine(hFile, "\t{");
-	WriteFileLine(hFile, "\t\t\"0\"");
-	WriteFileLine(hFile, "\t\t{");
-	WriteFileLine(hFile, "\t\t\t\"day\"\t\t\"\"");
-	WriteFileLine(hFile, "\t\t\t\"hour\"\t\t\"\"");
-	WriteFileLine(hFile, "\t\t\t\"minute\"\t\"\"");
-	WriteFileLine(hFile, "\t\t}");
-	WriteFileLine(hFile, "\t}");
+	hFile.WriteLine("\t\"%s\"", CONFIG_KV_RESTART_NAME);
+	hFile.WriteLine("\t{");
+	hFile.WriteLine("\t\t\"0\"");
+	hFile.WriteLine("\t\t{");
+	hFile.WriteLine("\t\t\t\"day\"\t\t\"\"");
+	hFile.WriteLine("\t\t\t\"hour\"\t\t\"\"");
+	hFile.WriteLine("\t\t\t\"minute\"\t\"\"");
+	hFile.WriteLine("\t\t}");
+	hFile.WriteLine("\t}");
 
-	WriteFileLine(hFile, "}");
+	hFile.WriteLine("}");
 
-	CloseHandle(hFile);
+	delete hFile;
 	return true;
 }
 
