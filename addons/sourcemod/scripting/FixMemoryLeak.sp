@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.5.2",
+	version = "1.5.3",
 	url = "https://github.com/srcdslab"
 }
 
@@ -392,10 +392,13 @@ public Action Command_AdminCancel(int client, int argc)
 	if (client == 0)
 		name = "The server";
 	else if (!GetClientName(client, name, sizeof(name)))
-		Format(name, sizeof(name), "Disconnected (uid:%d)", client);
+		Format(name, sizeof(name), "#%d", client);
 
 	LogMessage("%s has %s the server restart!", name, g_bPostponeRestart ? "scheduled" : "canceled");
-	CPrintToChatAll("%t %t", "Prefix", "Server Restart", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
+	if (client == 0)
+		CPrintToChatAll("%t %t", "Prefix", g_bPostponeRestart ? "Server Restart Scheduled By Server" : "Server Restart Canceled By Server");
+	else
+		CPrintToChatAll("%t %t", "Prefix", "Server Restart", name, g_bPostponeRestart ? "Scheduled" : "Canceled");
 	g_bPostponeRestart = !g_bPostponeRestart;
 
 	return Plugin_Handled;
@@ -1388,7 +1391,7 @@ stock void PrintConfiguredRestarts(int client)
 		g_iConfiguredRestarts.GetArray(i, configuredRestart, sizeof(configuredRestart));
 		GetDayName(configuredRestart.iDay, sConfiguredDayName, sizeof(sConfiguredDayName));
 
-		CPrintToChat(client, "{red}[Debug] {blue}Day : {default}T %s. {green}C %s {default}| {blue}Hour : {default}T %d. {green}C %d {default}| {blue}Minute : {default}T %d. {green}C %d", sCurrentDayName, sConfiguredDayName, iCurrentHour, configuredRestart.iHour, iCurrentMinute, configuredRestart.iMinute);
+		CReplyToCommand(client, "{red}[Debug] {blue}Day : {default}T %s. {green}C %s {default}| {blue}Hour : {default}T %d. {green}C %d {default}| {blue}Minute : {default}T %d. {green}C %d", sCurrentDayName, sConfiguredDayName, iCurrentHour, configuredRestart.iHour, iCurrentMinute, configuredRestart.iMinute);
 	}
 }
 

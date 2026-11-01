@@ -194,6 +194,29 @@
         "pt"            "cancelou"
     }
 
+    // Command_AdminCancel - from the server console
+    "Server Restart Scheduled By Server"
+    {
+        "en"            "{olive}The server {default}has scheduled the server restart!"
+        "fr"            "{olive}Le serveur {default}a planifié le redémarrage du serveur !"
+        "ru"            "{olive}Сервер {default}запланировал перезагрузку сервера!"
+        "es"            "{olive}¡El servidor {default}ha programado el reinicio del servidor!"
+        "de"            "{olive}Der Server {default}hat den Serverneustart geplant!"
+        "pt"            "{olive}O servidor {default}agendou o reinício do servidor!"
+        "chi"           "{olive}服务器{default}已计划服务器重启！"
+    }
+
+    "Server Restart Canceled By Server"
+    {
+        "en"            "{olive}The server {default}has canceled the server restart!"
+        "fr"            "{olive}Le serveur {default}a annulé le redémarrage du serveur !"
+        "ru"            "{olive}Сервер {default}отменил перезагрузку сервера!"
+        "es"            "{olive}¡El servidor {default}ha cancelado el reinicio del servidor!"
+        "de"            "{olive}Der Server {default}hat den Serverneustart abgebrochen!"
+        "pt"            "{olive}O servidor {default}cancelou o reinício do servidor!"
+        "chi"           "{olive}服务器{default}已取消服务器重启！"
+    }
+
     // OnRoundEnd
     "Restart Postponed Chat"
     {
