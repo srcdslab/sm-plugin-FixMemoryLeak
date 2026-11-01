@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "FixMemoryLeak",
 	author = "maxime1907, .Rushaway",
 	description = "Fix memory leaks resulting in crashes by restarting the server at a given time.",
-	version = "1.5.1",
+	version = "1.5.2",
 	url = "https://github.com/srcdslab"
 }
 
@@ -408,7 +408,7 @@ public Action Command_ForceRestartCommands(int client, int args)
 	g_bCmdsAlreadyExecuted = true;
 
 	if (success)
-		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Success");
+		CReplyToCommand(client, "%t %t", "Prefix", "Commands Reloaded Success");
 	else
 		CReplyToCommand(client, "%t %t", "Prefix", "Reload Config Error");
 	return Plugin_Handled;
