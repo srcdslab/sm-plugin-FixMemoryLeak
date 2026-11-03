@@ -8,6 +8,7 @@
         "es"            "{green}[SM]"
         "de"            "{green}[SM]"
         "pt"            "{green}[SM]"
+        "zho"           "{green}[SM]"
         "chi"           "{green}[SM]"
     }
 
@@ -19,6 +20,7 @@
         "es"            "{fullred}[Servidor]"
         "de"            "{fullred}[Server]"
         "pt"            "{fullred}[Servidor]"
+        "zho"           "{fullred}[伺服器]"
         "chi"           "{fullred}[服务器]"
     }
 
@@ -203,6 +205,7 @@
         "es"            "{olive}¡El servidor {default}ha programado el reinicio del servidor!"
         "de"            "{olive}Der Server {default}hat den Serverneustart geplant!"
         "pt"            "{olive}O servidor {default}agendou o reinício do servidor!"
+        "zho"           "{olive}伺服器{default}已計劃伺服器重啓！"
         "chi"           "{olive}服务器{default}已计划服务器重启！"
     }
 
@@ -214,6 +217,7 @@
         "es"            "{olive}¡El servidor {default}ha cancelado el reinicio del servidor!"
         "de"            "{olive}Der Server {default}hat den Serverneustart abgebrochen!"
         "pt"            "{olive}O servidor {default}cancelou o reinício do servidor!"
+        "zho"           "{olive}伺服器{default}已取消伺服器重啓！"
         "chi"           "{olive}服务器{default}已取消服务器重启！"
     }
 
