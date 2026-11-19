@@ -10,6 +10,11 @@
         "pt"            "{green}[SM]"
         "zho"           "{green}[SM]"
         "chi"           "{green}[SM]"
+        "pl"            "{green}[SM]"
+        "tr"            "{green}[SM]"
+        "it"            "{green}[SM]"
+        "ua"            "{green}[SM]"
+        "cze"           "{green}[SM]"
     }
 
     "Alert"
@@ -22,6 +27,11 @@
         "pt"            "{fullred}[Servidor]"
         "zho"           "{fullred}[伺服器]"
         "chi"           "{fullred}[服务器]"
+        "pl"            "{fullred}[Serwer]"
+        "tr"            "{fullred}[Sunucu]"
+        "it"            "{fullred}[Server]"
+        "ua"            "{fullred}[Сервер]"
+        "cze"           "{fullred}[Server]"
     }
 
     // Command_RestartServer
@@ -35,6 +45,11 @@
         "es"            "{default}El siguiente mapa no ha sido definido, por favor define uno"
         "de"            "{default}Die nächste Map wurde nicht festgelegt, bitte lege eine fest"
         "pt"            "{default}O próximo mapa não foi definido, defina um"
+        "pl"            "{default}Następna mapa nie została ustawiona, ustaw ją"
+        "tr"            "{default}Sonraki harita ayarlanmadı, lütfen bir tane ayarlayın"
+        "it"            "{default}La prossima mappa non è stata impostata, impostane una"
+        "ua"            "{default}Наступну мапу не встановлено, будь ласка, встановіть її"
+        "cze"           "{default}Další mapa nebyla nastavena, nastavte ji prosím"
     }
 
     // CheckAndAnnounceCountdown
@@ -51,6 +66,11 @@
         "es"            "{default}Por motivos de mantenimiento, el servidor se reiniciará en {green}{1} {default}minutos."
         "de"            "{default}Aus Wartungsgründen wird der Server in {green}{1} {default}Minuten neu gestartet."
         "pt"            "{default}Por motivos de manutenção, o servidor será reiniciado em {green}{1} {default}minutos."
+        "pl"            "{default}Z powodu prac konserwacyjnych serwer zostanie zrestartowany za {green}{1} {default}min."
+        "tr"            "{default}Bakım nedeniyle sunucu {green}{1} {default}dakika içinde yeniden başlatılacak."
+        "it"            "{default}Per motivi di manutenzione, il server verrà riavviato tra {green}{1} {default}minuti."
+        "ua"            "{default}Через технічне обслуговування сервер перезавантажиться через {green}{1} {default}хв."
+        "cze"           "{default}Z důvodu údržby se server restartuje za {green}{1} {default}min."
     }
 
     // CheckAndAnnounceCountdown - used instead of "Restart Countdown" once 2+ hours remain
@@ -67,6 +87,11 @@
         "es"            "{default}Por motivos de mantenimiento, el servidor se reiniciará en {green}{1} {default}horas."
         "de"            "{default}Aus Wartungsgründen wird der Server in {green}{1} {default}Stunden neu gestartet."
         "pt"            "{default}Por motivos de manutenção, o servidor será reiniciado em {green}{1} {default}horas."
+        "pl"            "{default}Z powodu prac konserwacyjnych serwer zostanie zrestartowany za {green}{1} {default}godz."
+        "tr"            "{default}Bakım nedeniyle sunucu {green}{1} {default}saat içinde yeniden başlatılacak."
+        "it"            "{default}Per motivi di manutenzione, il server verrà riavviato tra {green}{1} {default}ore."
+        "ua"            "{default}Через технічне обслуговування сервер перезавантажиться через {green}{1} {default}год."
+        "cze"           "{default}Z důvodu údržby se server restartuje za {green}{1} {default}hod."
     }
 
     // Command_SvNextRestart
@@ -85,6 +110,11 @@
         "es"            "{default}El próximo reinicio será en {green}{1} días {2} horas {3} minutos"
         "de"            "{default}Der nächste Neustart erfolgt in {green}{1} Tagen {2} Stunden {3} Minuten"
         "pt"            "{default}O próximo reinício será em {green}{1} dias {2} horas {3} minutos"
+        "pl"            "{default}Następny restart nastąpi za {green}{1} dni {2} godz. {3} min."
+        "tr"            "{default}Bir sonraki yeniden başlatma {green}{1} gün {2} saat {3} dakika sonra"
+        "it"            "{default}Il prossimo riavvio sarà tra {green}{1} giorni {2} ore {3} minuti"
+        "ua"            "{default}Наступне перезавантаження буде через {green}{1} дн. {2} год. {3} хв."
+        "cze"           "{default}Další restart proběhne za {green}{1} dní {2} hod. {3} min."
     }
 
     "Next Restart Time"
@@ -100,6 +130,11 @@
         "es"            "{default}El próximo reinicio del servidor será a las {green}{1}"
         "de"            "{default}Der nächste Serverneustart erfolgt um {green}{1}"
         "pt"            "{default}O próximo reinício do servidor será às {green}{1}"
+        "pl"            "{default}Następny restart serwera nastąpi o {green}{1}"
+        "tr"            "{default}Bir sonraki sunucu yeniden başlatması saat {green}{1}{default}'de olacak"
+        "it"            "{default}Il prossimo riavvio del server sarà alle {green}{1}"
+        "ua"            "{default}Наступне перезавантаження сервера буде о {green}{1}"
+        "cze"           "{default}Další restart serveru proběhne v {green}{1}"
     }
 
     "Remaining Time"
@@ -115,6 +150,11 @@
         "es"            "{default}Tiempo restante hasta el próximo reinicio: {green}{1}"
         "de"            "{default}Verbleibende Zeit bis zum nächsten Neustart: {green}{1}"
         "pt"            "{default}Tempo restante até o próximo reinício: {green}{1}"
+        "pl"            "{default}Czas do następnego restartu: {green}{1}"
+        "tr"            "{default}Bir sonraki yeniden başlatmaya kalan süre: {green}{1}"
+        "it"            "{default}Tempo rimanente al prossimo riavvio: {green}{1}"
+        "ua"            "{default}Залишилось часу до наступного перезавантаження: {green}{1}"
+        "cze"           "{default}Zbývající čas do dalšího restartu: {green}{1}"
     }
 
     // Command_DebugConfig
@@ -128,6 +168,11 @@
         "es"            "{default}La configuración de reinicio se recargó correctamente."
         "de"            "{default}Die Neustart-Konfiguration wurde erfolgreich neu geladen."
         "pt"            "{default}A configuração de reinício foi recarregada com sucesso."
+        "pl"            "{default}Konfiguracja restartu została pomyślnie przeładowana."
+        "tr"            "{default}Yeniden başlatma yapılandırması başarıyla yeniden yüklendi."
+        "it"            "{default}Configurazione di riavvio ricaricata con successo."
+        "ua"            "{default}Конфігурацію перезавантаження успішно оновлено."
+        "cze"           "{default}Konfigurace restartu byla úspěšně znovu načtena."
     }
 
     // Command_ForceRestartCommands
@@ -141,6 +186,11 @@
         "es"            "{default}Los comandos post-reinicio se ejecutaron correctamente."
         "de"            "{default}Die Befehle nach dem Neustart wurden erfolgreich ausgeführt."
         "pt"            "{default}Os comandos pós-reinício foram executados com sucesso."
+        "pl"            "{default}Polecenia po restarcie zostały pomyślnie wykonane."
+        "tr"            "{default}Yeniden başlatma sonrası komutlar başarıyla çalıştırıldı."
+        "it"            "{default}Comandi post-riavvio eseguiti con successo."
+        "ua"            "{default}Команди після перезавантаження успішно виконано."
+        "cze"           "{default}Příkazy po restartu byly úspěšně provedeny."
     }
 
     "Reload Config Error"
@@ -153,6 +203,11 @@
         "es"            "{default}Se produjo un {red}error {default}al leer el archivo de configuración."
         "de"            "{default}Beim Lesen der Konfigurationsdatei ist ein {red}Fehler {default}aufgetreten."
         "pt"            "{default}Ocorreu um {red}erro {default}ao ler o arquivo de configuração."
+        "pl"            "{default}Wystąpił {red}błąd {default}podczas odczytu pliku konfiguracyjnego."
+        "tr"            "{default}Yapılandırma dosyası okunurken bir {red}hata {default}oluştu."
+        "it"            "{default}Si è verificato un {red}errore {default}durante la lettura del file di configurazione."
+        "ua"            "{default}Під час читання файлу конфігурації сталася {red}помилка{default}."
+        "cze"           "{default}Při čtení konfiguračního souboru došlo k {red}chybě{default}."
     }
 
     // Command_AdminCancel
@@ -170,6 +225,11 @@
         "es"            "{olive}¡{1} {default}ha {2} el reinicio del servidor!"
         "de"            "{olive}{1} {default}hat den Serverneustart {2}!"
         "pt"            "{olive}{1} {default}{2} o reinício do servidor!"
+        "pl"            "{olive}{1} {default}{2} restart serwera!"
+        "tr"            "{olive}{1} {default}sunucu yeniden başlatmasını {2}!"
+        "it"            "{olive}{1} {default}ha {2} il riavvio del server!"
+        "ua"            "{olive}{1} {default}{2} перезавантаження сервера!"
+        "cze"           "{olive}{1} {default}{2} restart serveru!"
     }
 
     "Scheduled"
@@ -182,6 +242,11 @@
         "es"            "programado"
         "de"            "geplant"
         "pt"            "agendou"
+        "pl"            "zaplanował(a)"
+        "tr"            "planladı"
+        "it"            "programmato"
+        "ua"            "запланував(ла)"
+        "cze"           "naplánoval(a)"
     }
 
     "Canceled"
@@ -194,6 +259,11 @@
         "es"            "cancelado"
         "de"            "abgebrochen"
         "pt"            "cancelou"
+        "pl"            "anulował(a)"
+        "tr"            "iptal etti"
+        "it"            "annullato"
+        "ua"            "скасував(ла)"
+        "cze"           "zrušil(a)"
     }
 
     // Command_AdminCancel - from the server console
@@ -207,6 +277,11 @@
         "pt"            "{olive}O servidor {default}agendou o reinício do servidor!"
         "zho"           "{olive}伺服器{default}已計劃伺服器重啓！"
         "chi"           "{olive}服务器{default}已计划服务器重启！"
+        "pl"            "{olive}Serwer {default}zaplanował restart serwera!"
+        "tr"            "{olive}Sunucu {default}sunucu yeniden başlatmasını planladı!"
+        "it"            "{olive}Il server {default}ha programmato il riavvio del server!"
+        "ua"            "{olive}Сервер {default}запланував перезавантаження сервера!"
+        "cze"           "{olive}Server {default}naplánoval restart serveru!"
     }
 
     "Server Restart Canceled By Server"
@@ -219,6 +294,11 @@
         "pt"            "{olive}O servidor {default}cancelou o reinício do servidor!"
         "zho"           "{olive}伺服器{default}已取消伺服器重啓！"
         "chi"           "{olive}服务器{default}已取消服务器重启！"
+        "pl"            "{olive}Serwer {default}anulował restart serwera!"
+        "tr"            "{olive}Sunucu {default}sunucu yeniden başlatmasını iptal etti!"
+        "it"            "{olive}Il server {default}ha annullato il riavvio del server!"
+        "ua"            "{olive}Сервер {default}скасував перезавантаження сервера!"
+        "cze"           "{olive}Server {default}zrušil restart serveru!"
     }
 
     // OnRoundEnd
@@ -236,6 +316,11 @@
         "es"            "{default}¡Reinicio del servidor pospuesto! (Demasiados jugadores: {green}{1}{default}>{green}{2}{default})"
         "de"            "{default}Serverneustart verschoben! (Zu viele Spieler: {green}{1}{default}>{green}{2}{default})"
         "pt"            "{default}Reinício do servidor adiado! (Jogadores demais: {green}{1}{default}>{green}{2}{default})"
+        "pl"            "{default}Restart serwera odroczony! (Za dużo graczy: {green}{1}{default}>{green}{2}{default})"
+        "tr"            "{default}Sunucu yeniden başlatması ertelendi! (Çok fazla oyuncu: {green}{1}{default}>{green}{2}{default})"
+        "it"            "{default}Riavvio del server rimandato! (Troppi giocatori: {green}{1}{default}>{green}{2}{default})"
+        "ua"            "{default}Перезавантаження сервера відкладено! (Забагато гравців: {green}{1}{default}>{green}{2}{default})"
+        "cze"           "{default}Restart serveru odložen! (Příliš mnoho hráčů: {green}{1}{default}>{green}{2}{default})"
     }
 
     "Restart Postponed Other"
@@ -252,6 +337,11 @@
         "es"            "¡Reinicio del servidor pospuesto!\n(Demasiados jugadores: {1}>{2})"
         "de"            "Serverneustart verschoben!\n(Zu viele Spieler: {1}>{2})"
         "pt"            "Reinício do servidor adiado!\n(Jogadores demais: {1}>{2})"
+        "pl"            "Restart serwera odroczony!\n(Za dużo graczy: {1}>{2})"
+        "tr"            "Sunucu yeniden başlatması ertelendi!\n(Çok fazla oyuncu: {1}>{2})"
+        "it"            "Riavvio del server rimandato!\n(Troppi giocatori: {1}>{2})"
+        "ua"            "Перезавантаження сервера відкладено!\n(Забагато гравців: {1}>{2})"
+        "cze"           "Restart serveru odložen!\n(Příliš mnoho hráčů: {1}>{2})"
     }
 
     "Restart Start Chat"
@@ -267,6 +357,11 @@
         "es"            "{white}¡Reinicio automático del servidor!\n{1} {white}¡Vuelve a conectarte y diviértete!"
         "de"            "{white}Automatischer Serverneustart!\n{1} {white}Verbinde dich neu und viel Spaß!"
         "pt"            "{white}Reinício automático do servidor!\n{1} {white}Reconecte e divirta-se!"
+        "pl"            "{white}Automatyczny restart serwera!\n{1} {white}Połącz się ponownie i miłej gry!"
+        "tr"            "{white}Otomatik sunucu yeniden başlatması!\n{1} {white}Tekrar bağlanın ve iyi eğlenceler!"
+        "it"            "{white}Riavvio automatico del server!\n{1} {white}Riconnettiti e buon divertimento!"
+        "ua"            "{white}Автоматичне перезавантаження сервера!\n{1} {white}Підключайтеся знову та приємної гри!"
+        "cze"           "{white}Automatický restart serveru!\n{1} {white}Připojte se znovu a bavte se!"
     }
 
     "Restart Start Other"
@@ -279,6 +374,11 @@
         "es"            "¡Reinicio automático del servidor!\n¡Vuelve a conectarte y diviértete!"
         "de"            "Automatischer Serverneustart!\nVerbinde dich neu und viel Spaß!"
         "pt"            "Reinício automático do servidor!\nReconecte e divirta-se!"
+        "pl"            "Automatyczny restart serwera!\nPołącz się ponownie i miłej gry!"
+        "tr"            "Otomatik sunucu yeniden başlatması!\nTekrar bağlanın ve iyi eğlenceler!"
+        "it"            "Riavvio automatico del server!\nRiconnettiti e buon divertimento!"
+        "ua"            "Автоматичне перезавантаження сервера!\nПідключайтеся знову та приємної гри!"
+        "cze"           "Automatický restart serveru!\nPřipojte se znovu a bavte se!"
     }
 
     "Restart Soon Chat"
@@ -294,6 +394,11 @@
         "es"            "{default}Reinicio automático del servidor al final del mapa.\n{1} {white}¡No olvides reconectarte después del reinicio!"
         "de"            "{default}Automatischer Serverneustart am Ende der Map.\n{1} {white}Vergiss nicht, dich nach dem Neustart neu zu verbinden!"
         "pt"            "{default}Reinício automático do servidor no fim do mapa.\n{1} {white}Não se esqueça de reconectar após o reinício!"
+        "pl"            "{default}Automatyczny restart serwera na końcu mapy.\n{1} {white}Nie zapomnij połączyć się ponownie po restarcie!"
+        "tr"            "{default}Otomatik sunucu yeniden başlatması harita sonunda yapılacak.\n{1} {white}Yeniden başlatmadan sonra tekrar bağlanmayı unutmayın!"
+        "it"            "{default}Riavvio automatico del server a fine mappa.\n{1} {white}Non dimenticare di riconnetterti dopo il riavvio!"
+        "ua"            "{default}Автоматичне перезавантаження сервера наприкінці мапи.\n{1} {white}Не забудьте підключитися знову після перезавантаження!"
+        "cze"           "{default}Automatický restart serveru na konci mapy.\n{1} {white}Nezapomeňte se po restartu znovu připojit!"
     }
 
     "Restart Soon Other"
@@ -306,5 +411,10 @@
         "es"            "Reinicio automático del servidor al final del mapa.\n¡No olvides reconectarte después del reinicio!"
         "de"            "Automatischer Serverneustart am Ende der Map.\nVergiss nicht, dich nach dem Neustart neu zu verbinden!"
         "pt"            "Reinício automático do servidor no fim do mapa.\nNão se esqueça de reconectar após o reinício!"
+        "pl"            "Automatyczny restart serwera na końcu mapy.\nNie zapomnij połączyć się ponownie po restarcie!"
+        "tr"            "Otomatik sunucu yeniden başlatması harita sonunda yapılacak.\nYeniden başlatmadan sonra tekrar bağlanmayı unutmayın!"
+        "it"            "Riavvio automatico del server a fine mappa.\nNon dimenticare di riconnetterti dopo il riavvio!"
+        "ua"            "Автоматичне перезавантаження сервера наприкінці мапи.\nНе забудьте підключитися знову після перезавантаження!"
+        "cze"           "Automatický restart serveru na konci mapy.\nNezapomeňte se po restartu znovu připojit!"
     }
 }
